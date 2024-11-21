@@ -2,7 +2,6 @@ menu "Target packages"
 
 	source "package/busybox/Config.in"
 	source "package/rockchip/Config.in"
-	source "package/ks/Config.in"
 	source "package/skeleton/Config.in"
 	source "package/skeleton-custom/Config.in"
 	source "package/skeleton-init-common/Config.in"
