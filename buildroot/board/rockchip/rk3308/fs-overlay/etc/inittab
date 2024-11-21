@@ -22,7 +22,7 @@
 ::sysinit:/bin/hostname -F /etc/hostname
 null::sysinit:/sbin/ifconfig lo up
 # now run any rc scripts
-::respawn:-/bin/sh
+respawn:-/bin/sh
 ::sysinit:/etc/init.d/rcS
 
 # Put a getty on the serial port

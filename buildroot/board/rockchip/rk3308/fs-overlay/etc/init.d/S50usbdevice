@@ -7,7 +7,7 @@ ADB_EN=off
 UAC1_EN=off
 HID_EN=off
 
-UAC_NAME="SoundMatrix A10"
+UAC_NAME="JD100"
 
 make_config_string()
 {
@@ -41,10 +41,6 @@ parameter_init()
 
 	VID=0x2E7E
 	PID=0x09FF
-
-	if [ $UAC1_EN = on ];then
-		UAC_NAME=`device_info.sh uac_name`
-	fi
 }
 
 configfs_init()
@@ -58,10 +54,9 @@ configfs_init()
 	echo 0x01 > /sys/kernel/config/usb_gadget/rockchip/bDeviceProtocol
 	mkdir /sys/kernel/config/usb_gadget/rockchip/strings/0x409   -m 0770
 	
-	sn=""
-	sn=`device_info.sh sn`
+	sn="0123456789ABCDEF"
 	echo $sn > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/serialnumber
-	echo "ValueHD"  > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/manufacturer
+	echo "Rockchip"  > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/manufacturer
 	echo $UAC_NAME > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/product
 	mkdir /sys/kernel/config/usb_gadget/rockchip/configs/b.1  -m 0770
 	mkdir /sys/kernel/config/usb_gadget/rockchip/configs/b.1/strings/0x409  -m 0770
