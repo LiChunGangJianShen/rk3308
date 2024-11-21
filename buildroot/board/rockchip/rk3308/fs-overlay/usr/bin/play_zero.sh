@@ -1,0 +1,1 @@
+/usr/bin/aplay --channels 2 --rate 48000 --format S16_LE /dev/zero > /dev/null 2>&1

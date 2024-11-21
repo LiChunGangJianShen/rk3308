@@ -1,0 +1,170 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308bs-a610ks.dtsi"
+
+/ {
+	model = "Rockchip RK3308B-S evb analog mic v11 board";
+	compatible = "rockchip,rk3308bs-evb-amic-v11", "rockchip,rk3308";
+	
+	acodec_sound: acodec-sound {
+		status = "okay";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-acodec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s_8ch_2>;
+		rockchip,codec = <&acodec>;
+	};
+	
+	pdm_dmic_array: pdm-mic-array {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,pdm-mic-array";
+		simple-audio-card,cpu {
+			sound-dai = <&pdm_8ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+	
+	ak7755_sound: ak7755-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,ak7755";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_2ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&ak7755>;
+		};
+ 	};
+	
+	rockchip-keys {
+		status = "okay";
+		compatible = "rockchip,key";
+		
+		volume-plus-key {
+			gpios = <&gpio4 RK_PA2 GPIO_ACTIVE_HIGH>;
+			linux,code = <114>;
+			label = "volplus";
+			debounce-interval = <100>;
+		};
+		
+		volume-reduce-key {
+			gpios = <&gpio4 RK_PA0 GPIO_ACTIVE_HIGH>;
+			linux,code = <115>;
+			label = "volreduce";
+			debounce-interval = <100>;
+		};
+		
+		mic-mute-key {
+			gpios = <&gpio4 RK_PA1 GPIO_ACTIVE_HIGH>;
+			linux,code = <116>;
+			label = "micmute";
+			debounce-interval = <100>;
+		};
+		
+		off-hook-key {
+			gpios = <&gpio4 RK_PA4 GPIO_ACTIVE_HIGH>;
+			linux,code = <117>;
+			label = "offhook";
+			debounce-interval = <100>;
+		};
+		
+		on-hook-key {
+			gpios = <&gpio4 RK_PA3 GPIO_ACTIVE_HIGH>;
+			linux,code = <118>;
+			label = "onhook";
+			debounce-interval = <100>;
+		};
+		
+		ex-board-1-key {
+			gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
+			linux,code = <119>;
+			label = "ex-b1-key";
+			debounce-interval = <100>;
+		};
+		
+		ex-board-2-key {
+			gpios = <&gpio0 RK_PA7 GPIO_ACTIVE_LOW>;
+			linux,code = <120>;
+			label = "ex-b2-key";
+			debounce-interval = <100>;
+		};
+	};
+};
+
+&i2s_8ch_2 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
+&i2s_2ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
+&acodec {
+	status = "okay";
+	rockchip,micbias1;
+	rockchip,micbias2;
+	rockchip,no-deep-low-power;
+	rockchip,loopback-grp = <0>;
+};
+
+&bluetooth_sound {
+	status = "disabled";
+};
+
+&pdm_8ch {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	//rockchip,no-dmaengine;
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+	status = "okay";
+	ak7755: ak7755@18 {
+		#sound-dai-cells = <0>;
+		compatible = "akm,ak7755";
+		reg = <0x18>;
+		clocks = <&cru SCLK_I2S0_2CH_OUT>;
+		clock-names = "mclk";
+		pdn-gpio = <&gpio0 RK_PA2 GPIO_ACTIVE_LOW>;
+		i2c-sel-gpio = <&gpio4 RK_PB2 GPIO_ACTIVE_HIGH>;
+ 	};
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&emmc {
+	status = "okay";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&mac {
+	status = "disabled";
+};
+
+&u2phy_otg {
+	rockchip,vbus-always-on;
+};

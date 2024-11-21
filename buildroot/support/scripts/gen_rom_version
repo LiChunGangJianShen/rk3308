@@ -1,0 +1,12 @@
+GIT_BRANCH=`git rev-parse --abbrev-ref HEAD`
+if [ "$GIT_BRANCH"x = "HEAD"x ]
+then
+    GIT_BRANCH=`echo ${branch_tag_commit}`
+fi
+REVISION_VERSION=`git rev-list --count HEAD`
+GIT_COMMIT_HASH=`git log -1 --format=%h`
+BUILD_TIME=`date -d "+8 hour" "+%Y-%m-%d %H:%M:%S"`
+MAJOR_VERSION=1
+MINOR_VERSION="`expr $REVISION_VERSION / 100`.`expr $REVISION_VERSION % 100`"
+VER="V${MAJOR_VERSION}.${MINOR_VERSION} branch(${GIT_BRANCH})-hash(${GIT_COMMIT_HASH})-reversion(${REVISION_VERSION})-buildtime(${BUILD_TIME})-chipid(RK3308BS)"
+printf '%s' "$VER"

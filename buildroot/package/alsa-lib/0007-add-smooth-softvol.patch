@@ -1,0 +1,143 @@
+commit 38a163b8c6466db34fb1468fcf030215cf41e1ee
+Author: lvxinliang <lvxinliang@kuaishou.com>
+Date:   Thu Feb 2 16:08:16 2023 +0800
+
+    Smooth volume.
+
+diff --git a/src/pcm/pcm_softvol.c b/src/pcm/pcm_softvol.c
+index 68a35b5..29abbd1 100644
+--- a/src/pcm/pcm_softvol.c
++++ b/src/pcm/pcm_softvol.c
+@@ -61,6 +61,9 @@ typedef struct {
+ #define ZERO_DB                  0.0
+ #define MAX_DB_UPPER_LIMIT      50
+ 
++static unsigned int prev_vol = 0xFF;
++static unsigned int curr_vol = 0;
++
+ static const unsigned int preset_dB_value[PRESET_RESOLUTION] = {
+ 	0x00b8, 0x00bd, 0x00c1, 0x00c5, 0x00ca, 0x00cf, 0x00d4, 0x00d9,
+ 	0x00de, 0x00e3, 0x00e8, 0x00ed, 0x00f3, 0x00f9, 0x00fe, 0x0104,
+@@ -210,6 +213,29 @@ static inline short MULTI_DIV_short(short a, unsigned int b, int swap)
+ 	} \
+ } while (0)
+ 
++#define CONVERT_AREA_SMOOTH(TYPE, swap) do {	\
++	unsigned int ch, fr; \
++	float scale_step; \
++	TYPE *src, *dst; \
++	for (ch = 0; ch < channels; ch++) { \
++		src_area = &src_areas[ch]; \
++		dst_area = &dst_areas[ch]; \
++		src = snd_pcm_channel_area_addr(src_area, src_offset); \
++		dst = snd_pcm_channel_area_addr(dst_area, dst_offset); \
++		src_step = snd_pcm_channel_area_step(src_area) / sizeof(TYPE); \
++		dst_step = snd_pcm_channel_area_step(dst_area) / sizeof(TYPE); \
++		vol_scale = prev_vol; \
++		scale_step = ((float)curr_vol - prev_vol) / frames; \
++		fr = frames; \
++		while (fr--) { \
++			*dst = (TYPE) MULTI_DIV_##TYPE(*src, vol_scale, swap); \
++			vol_scale = (unsigned)(vol_scale + scale_step); \
++			src += src_step; \
++			dst += dst_step; \
++		} \
++	} \
++} while (0)
++
+ #define CONVERT_AREA_S24_3LE() do {					\
+ 	unsigned int ch, fr;						\
+ 	unsigned char *src, *dst;					\
+@@ -364,6 +390,52 @@ static void softvol_convert_stereo_vol(snd_pcm_softvol_t *svol,
+ 		break;
+ 	}
+ }
++static void softvol_convert_stereo_vol_smooth(snd_pcm_softvol_t *svol,
++				       const snd_pcm_channel_area_t *dst_areas,
++				       snd_pcm_uframes_t dst_offset,
++				       const snd_pcm_channel_area_t *src_areas,
++				       snd_pcm_uframes_t src_offset,
++				       unsigned int channels,
++				       snd_pcm_uframes_t frames)
++{
++	const snd_pcm_channel_area_t *dst_area, *src_area;
++	unsigned int src_step, dst_step;
++	unsigned int vol_scale, vol[2], vol_c;
++
++	if (svol->max_val == 1) {
++		vol[0] = svol->cur_vol[0] ? 0xffff : 0;
++		vol[1] = svol->cur_vol[1] ? 0xffff : 0;
++		vol_c = vol[0] | vol[1];
++	} else {
++		vol[0] = svol->dB_value[svol->cur_vol[0]];
++		vol[1] = svol->dB_value[svol->cur_vol[1]];
++		vol_c = svol->dB_value[(svol->cur_vol[0] + svol->cur_vol[1]) / 2];
++	}
++	curr_vol = vol[0];
++	switch (svol->sformat) {
++	case SND_PCM_FORMAT_S16_LE:
++	case SND_PCM_FORMAT_S16_BE:
++		/* 16bit samples */
++		CONVERT_AREA_SMOOTH(short, 
++			     !snd_pcm_format_cpu_endian(svol->sformat));
++		break;
++	case SND_PCM_FORMAT_S32_LE:
++	case SND_PCM_FORMAT_S32_BE:
++		/* 32bit samples */
++		CONVERT_AREA(int,
++			     !snd_pcm_format_cpu_endian(svol->sformat));
++		break;
++	case SND_PCM_FORMAT_S24_LE:
++		/* 24bit samples */
++		CONVERT_AREA_S24_LE();
++		break;
++	case SND_PCM_FORMAT_S24_3LE:
++		CONVERT_AREA_S24_3LE();
++		break;
++	default:
++		break;
++	}
++}
+ 
+ #undef GET_VOL_SCALE
+ #define GET_VOL_SCALE
+@@ -634,7 +706,6 @@ static int snd_pcm_softvol_hw_params(snd_pcm_t *pcm, snd_pcm_hw_params_t * param
+ 	svol->sformat = slave->format;
+ 	return 0;
+ }
+-
+ static snd_pcm_uframes_t
+ snd_pcm_softvol_write_areas(snd_pcm_t *pcm,
+ 			    const snd_pcm_channel_area_t *areas,
+@@ -648,13 +719,25 @@ snd_pcm_softvol_write_areas(snd_pcm_t *pcm,
+ 	if (size > *slave_sizep)
+ 		size = *slave_sizep;
+ 	get_current_volume(svol);
+-	if (svol->cchannels == 1)
+-		softvol_convert_mono_vol(svol, slave_areas, slave_offset,
+-					 areas, offset, pcm->channels, size);
+-	else
+-		softvol_convert_stereo_vol(svol, slave_areas, slave_offset,
+-					   areas, offset, pcm->channels, size);
++	curr_vol = svol->dB_value[svol->cur_vol[0]];
++	if (strcmp(svol->elem.id.name, "playback_softvol") == 0 && prev_vol != curr_vol) {
++		if (svol->cchannels == 1)
++			softvol_convert_mono_vol(svol, slave_areas, slave_offset,
++						areas, offset, pcm->channels, size);
++		else
++			softvol_convert_stereo_vol_smooth(svol, slave_areas, slave_offset,
++						areas, offset, pcm->channels, size);
++	} else {
++		if (svol->cchannels == 1)
++			softvol_convert_mono_vol(svol, slave_areas, slave_offset,
++						areas, offset, pcm->channels, size);
++		else
++			softvol_convert_stereo_vol(svol, slave_areas, slave_offset,
++						areas, offset, pcm->channels, size);
++	}
+ 	*slave_sizep = size;
++	prev_vol = curr_vol;
++
+ 	return size;
+ }
+ 

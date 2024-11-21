@@ -1,0 +1,13 @@
+# 语言: None, Cpp, Java, JavaScript, ObjC, Proto, TableGen, TextProto
+Language:       Cpp
+# BasedOnStyle: LLVM
+# 构造函数的初始化列表的缩进宽度
+ConstructorInitializerIndentWidth:      4
+# 延续的行的缩进宽度
+ContinuationIndentWidth:        4
+# 缩进宽度
+IndentWidth:    4
+ColumnLimit: 300
+# BasedOnStyle: LLVM
+# 访问说明符(public、private等)的偏移
+AccessModifierOffset:   -4

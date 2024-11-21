@@ -1,0 +1,33 @@
+#!/bin/sh
+factory_flag="/oem/factory_mode"
+case "$1" in
+	start)
+		if [ -f "$factory_flag" ]; then
+			echo "factory mode"
+			enabled=`cat /etc/init.d/.usb_config | grep usb_adb_en | wc -l`
+			if [ $enabled = 0 ] ; then
+				cp /etc/init.d/.usb_config /tmp/
+				mount --bind /tmp/.usb_config /etc/init.d/.usb_config
+				echo "usb_adb_en" >> /etc/init.d/.usb_config
+			fi
+
+			# mount
+			touch  /tmp/empty
+			chmod a+x /tmp/empty
+			mount --bind /tmp/empty /etc/init.d/S46audio_engine
+			mount --bind /tmp/empty /etc/init.d/S90dcron
+			mount --bind /oem/S98open_tone /etc/init.d/S98open_tone
+
+
+		else
+			echo "user mode"
+		fi
+        ;;
+	stop)
+        ;;
+	*)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+exit 0

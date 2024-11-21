@@ -1,0 +1,6 @@
+* * * * * /usr/bin/watchdog.sh
+* * * * * sleep 10; /usr/bin/watchdog.sh
+* * * * * sleep 20; /usr/bin/watchdog.sh
+* * * * * sleep 30; /usr/bin/watchdog.sh
+* * * * * sleep 40; /usr/bin/watchdog.sh
+* * * * * sleep 50; /usr/bin/watchdog.sh
