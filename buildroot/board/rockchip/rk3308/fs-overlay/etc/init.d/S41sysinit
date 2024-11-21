@@ -1,0 +1,89 @@
+#!/bin/sh
+
+ti3104_setup()
+{
+	#input
+	amixer -cti3104 cset name='De-emphasis Switch' 0	#reg 12
+	amixer -cti3104 cset name='ADC HPF Cut-off' 0	#reg 12
+	amixer -cti3104 cset name='PGA Capture Switch' 1	#reg 15,16 bit7
+	amixer -cti3104 cset name='Left PGA Capture Volume'	0	#reg 15
+	amixer -cti3104 cset name='Right PGA Capture Volume' 0	#reg 16
+	amixer -cti3104 cset name='Left PGA Mixer Mic2L Switch' 0	#reg 17	
+	amixer -cti3104 cset name='Left PGA Mixer Mic2R Switch'	0xf	#reg 17
+	amixer -cti3104 cset name='Right PGA Mixer Mic2L Switch' 0xf	#reg 18
+	amixer -cti3104 cset name='Right PGA Mixer Mic2R Switch' 0	#reg 18
+	amixer -cti3104 cset name='Left Line1L Mux' 0	#reg 19 bit7
+	amixer -cti3104 cset name='Left PGA Mixer Line1L Switch' 0	#reg 19 bit[3,6]
+	amixer -cti3104 cset name='Left PGA Mixer Line1R Switch' 0xf	#reg 21 bit[3,6]
+	amixer -cti3104 cset name='Right Line1R Mux' 0	#reg 22 bit7
+	amixer -cti3104 cset name='Right PGA Mixer Line1L Switch' 0xf	#reg 24 bit[3,6]
+	amixer -cti3104 cset name='Right PGA Mixer Line1R Switch' 0	#reg 22 bit[3,6]
+	
+	#output
+	amixer -cti3104 cset name='Left HPCOM Mux' 0 #reg 37
+	amixer -cti3104 cset name='Right HPCOM Mux'	0 #reg 38
+	amixer -cti3104 cset name='Left DAC Mux' 0	#reg 41
+	amixer -cti3104 cset name='Right DAC Mux' 0	#reg 41
+	amixer -cti3104 cset name='PCM Playback Volume'	127	#reg 43,44
+	amixer -cti3104 cset name='Left HP DAC Playback Volume' 118	#reg 47
+	amixer -cti3104 cset name='Left HPCOM DAC Playback Volume' 118	#reg 54
+	amixer -cti3104 cset name='Left HP Playback Volume' 0	#reg 51
+	amixer -cti3104 cset name='Left HPCOM Playback Volume' 0	#reg 58
+	amixer -cti3104 cset name='Right HP DAC Playback Volume' 118	#reg 64
+	amixer -cti3104 cset name='Right HPCOM DAC Playback Volume' 118	#reg 71
+	amixer -cti3104 cset name='Right HP Playback Volume' 0	#reg 65
+	amixer -cti3104 cset name='Right HPCOM Playback Volume' 0	#reg 72
+	amixer -cti3104 cset name='Left HP Mixer DACL1 Switch' 1	#reg 47
+	amixer -cti3104 cset name='Right HP Mixer DACR1 Switch' 1	#reg 64
+	amixer -cti3104 cset name='HP Playback Switch' 1	#reg 51,65
+	amixer -cti3104 cset name='Left HPCOM Mixer DACL1 Switch' 1	#reg 54
+	amixer -cti3104 cset name='Right HPCOM Mixer DACR1 Switch' 1	#reg 71
+	amixer -cti3104 cset name='HPCOM Playback Switch' 1	#reg 58,72
+}
+
+lineout_ctrl_setup()
+{
+	#aecout
+	echo 0 > /sys/class/gpio/export
+	echo out > /sys/class/gpio/gpio0/direction
+	echo 1 > /sys/class/gpio/gpio0/value
+	
+	#spkout
+	echo 1 > /sys/class/gpio/export
+	echo out > /sys/class/gpio/gpio1/direction
+	echo 1 > /sys/class/gpio/gpio1/value
+}
+
+init_ti3104()
+{
+	ti3104_setup
+	lineout_ctrl_setup
+}
+
+led_init()
+{
+	# gpio1_a7
+	echo 39 > /sys/class/gpio/export
+	echo out > /sys/class/gpio/gpio39/direction
+	echo 1 > /sys/class/gpio/gpio39/value
+}
+
+case "$1" in
+	start)
+		# ueventd
+		#echo "bind irq 23 to cpu0"
+		#echo 1 > /proc/irq/23/smp_affinity  (1,2,4,8对应0~3核, 23是usb中断号)
+		#irqno=`cat /proc/interrupts | grep ff400000.usb | awk '{print $1}' | awk -F: '{print $1}'`
+		#echo 8 > /proc/irq/$irqno/smp_affinity
+		
+		init_ti3104
+		led_init
+		;;
+	stop)
+        ;;
+	*)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+exit 0
