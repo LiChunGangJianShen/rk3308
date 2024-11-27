@@ -25,7 +25,7 @@ rk3308_soc_t check_soc_type(void)
 
     type &= 0x1f;
     generation = (generation >> 6) & 0x3;
-    // log_dbg("generation=%d, type=%d", generation, type);
+    log_info("generation=%d, type=%d", generation, type);
 
     if(type == 0x02){
         if(generation == 0x01)
@@ -33,7 +33,7 @@ rk3308_soc_t check_soc_type(void)
         else if(generation == 0x02)
             soc_type = soc_rk3308bs;
         else{
-            log_dbg("Error soc generation");
+            log_err("Error soc generation");
             soc_type = soc_max;
         }
     }
@@ -46,40 +46,14 @@ rk3308_soc_t check_soc_type(void)
         else if(generation == 0x02)
             soc_type = soc_rk3308hs;
         else{
-            log_dbg("Error soc generation");
+            log_err("Error soc generation");
             soc_type = soc_max;
         }
     }
     else{
-        log_dbg("Error soc type");
+        log_err("Error soc type");
         soc_type = soc_max;
     }
 
     return soc_type;
-}
-
-void cpu_type(void)
-{
-    rk3308_soc_t soc_type = check_soc_type();
-    switch(soc_type){
-        case soc_rk3308g:
-            log_dbg("cpu-type: %s", RK3308G);
-            break;
-        case soc_rk3308h:
-            log_dbg("cpu-type: %s", RK3308H);
-            break;
-        case soc_rk3308hs:
-            log_dbg("cpu-type: %s", RK3308HS);
-            break;
-        case soc_rk3308b:
-            log_dbg("cpu-type: %s", RK3308B);
-            break;
-        case soc_rk3308bs:
-            log_dbg("cpu-type: %s", RK3308BS);
-            break;
-        case soc_max:
-        default:
-            log_dbg("unknow soc-type");
-            break;
-    }
 }

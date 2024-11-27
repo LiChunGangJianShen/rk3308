@@ -1,30 +1,29 @@
 SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
-BIN_DIR = bin
 ETC_DIR = etc
 RUN_ALGO_LIB_DIR = /oem
 
-TARGET = jdapp
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
-LDFLAGS = -Wl,-rpath,$(RUN_ALGO_LIB_DIR) -ljdaudio -lpthread -lasound -ldl -lm -lstdc++ -L$(LIB_DIR)
+CXXFLAGS = -fpermissive
+LDFLAGS = -Wl,-rpath,$(RUN_ALGO_LIB_DIR) -ljdaudio -lasound -lpthread -ldl -lm -lstdc++ -L$(LIB_DIR)
+TARGET = jdapp
+BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
+APP_VERSION := V1.00
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))
 
-VERSION = V1.00
-BUILD_TIME = $(shell date "+%Y-%m-%d %H:%M:%S")
+# CC=arm-linux-gnueabihf-gcc
+# STRIP=arm-linux-gnueabihf-strip
+CC=aarch64-linux-gnu-gcc
+STRIP=aarch64-linux-gnu-strip
 
-# CC = gcc
-# STRIP = strip
-CC = aarch64-linux-gnu-gcc
-STRIP = aarch64-linux-gnu-strip
+all: pre_build $(TARGET)
 
-all: prebuild $(TARGET) 
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET) $(CFLAGS) $(LDFLAGS)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 	$(STRIP) $(TARGET)
-	cp -f $(TARGET) $(BIN_DIR)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
 	cp -f $(LIB_DIR)/libjdaudio.so ../../device/rockchip/rk3308/oem_jd100/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
@@ -35,9 +34,13 @@ $(TARGET): $(OBJ)
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)
 
-.PHONY:prebuild clean
-prebuild:
-	echo "#define VERSION \"$(VERSION)\"" >$(INC_DIR)/version.h
-	echo "#define BUILD_TIME	\"$(BUILD_TIME)\""	>$(INC_DIR)/build_time.h
+.PHONY:clean pre_build
+
+pre_build:
+	@echo "\n$(BUILD_TIME)\n"
+	@echo "#define BUILD_TIME \"$(BUILD_TIME)\"" > include/build_time.h
+	@echo "app-version: $(APP_VERSION)\n"
+	@echo "#define APP_VERSION \"$(APP_VERSION)\"" > include/app_version.h
+
 clean:
-	rm -rf $(OBJ) $(TARGET)
+	rm -f $(OBJ) $(TARGET)

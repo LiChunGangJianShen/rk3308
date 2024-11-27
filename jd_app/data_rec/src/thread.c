@@ -1,9 +1,11 @@
 #include <stdio.h>
+#define _GUN_SOURCE
+#define __USE_GNU
 #include <pthread.h>
 #include <sched.h>
 #include <assert.h>
-#include <syslog.h>
 #include "thread.h"
+
 
 
 static int api_get_thread_policy (pthread_attr_t *attr)
@@ -15,16 +17,16 @@ static int api_get_thread_policy (pthread_attr_t *attr)
     switch (policy)
     {
         case SCHED_FIFO:
-            syslog(LOG_DEBUG, "policy = SCHED_FIFO\n");
+            printf ("policy = SCHED_FIFO\n");
             break;
         case SCHED_RR:
-            syslog(LOG_DEBUG, "policy = SCHED_RR");
+            printf ("policy = SCHED_RR");
             break;
         case SCHED_OTHER:
-            syslog(LOG_DEBUG, "policy = SCHED_OTHER\n");
+            printf ("policy = SCHED_OTHER\n");
             break;
         default:
-            syslog(LOG_DEBUG, "policy = UNKNOWN\n");
+            printf ("policy = UNKNOWN\n");
             break; 
     }
     return policy;
@@ -34,10 +36,10 @@ static void api_show_thread_priority (pthread_attr_t *attr,int policy)
 {
     int priority = sched_get_priority_max (policy);
     assert (priority != -1);
-    syslog(LOG_DEBUG, "max_priority = %d\n", priority);
+    printf ("max_priority = %d\n", priority);
     priority = sched_get_priority_min (policy);
     assert (priority != -1);
-    syslog(LOG_DEBUG, "min_priority = %d\n", priority);
+    printf ("min_priority = %d\n", priority);
 }
 
 static int api_get_thread_priority (pthread_attr_t *attr)
@@ -45,7 +47,7 @@ static int api_get_thread_priority (pthread_attr_t *attr)
     struct sched_param param;
     int rs = pthread_attr_getschedparam (attr, &param);
     assert (rs == 0);
-    syslog(LOG_DEBUG, "priority = %d\n", param.__sched_priority);
+    printf ("priority = %d\n", param.__sched_priority);
     return param.__sched_priority;
 }
 
@@ -71,32 +73,32 @@ int show_thread_priority(void)
     int policy = api_get_thread_policy (&attr);
 
     /* 显示当前调度策略的线程优先级范围 */
-    syslog(LOG_DEBUG, "Show current configuration of priority\n");
+    printf ("Show current configuration of priority\n");
     api_show_thread_priority(&attr, policy);
 
     /* 获取 SCHED_FIFO 策略下的线程优先级范围 */
-    syslog(LOG_DEBUG, "show SCHED_FIFO of priority\n");
+    printf ("show SCHED_FIFO of priority\n");
     api_show_thread_priority(&attr, SCHED_FIFO);
 
     /* 获取 SCHED_RR 策略下的线程优先级范围 */
-    syslog(LOG_DEBUG, "show SCHED_RR of priority\n");
+    printf ("show SCHED_RR of priority\n");
     api_show_thread_priority(&attr, SCHED_RR);
 
     /* 显示当前线程的优先级 */
-    syslog(LOG_DEBUG, "show priority of current thread\n");
+    printf ("show priority of current thread\n");
     api_get_thread_priority (&attr);
 
     /* 手动设置调度策略 */
-    syslog(LOG_DEBUG, "Set thread policy\n");
+    printf ("Set thread policy\n");
 
-    syslog(LOG_DEBUG, "set SCHED_FIFO policy\n");
+    printf ("set SCHED_FIFO policy\n");
     api_set_thread_policy(&attr, SCHED_FIFO);
 
-    syslog(LOG_DEBUG, "set SCHED_RR policy\n");
+    printf ("set SCHED_RR policy\n");
     api_set_thread_policy(&attr, SCHED_RR);
 
     /* 还原之前的策略 */
-    syslog(LOG_DEBUG, "Restore current policy\n");
+    printf ("Restore current policy\n");
     api_set_thread_policy (&attr, policy);
 
     /* 
@@ -128,12 +130,12 @@ int create_thread(char *name, int bind_cpu, int is_high_priority, thread_func ru
 	cpu_set_t cpu_set;
 	
 	if(!name || !run || !thread_data) {
-        syslog(LOG_DEBUG, "create_thread fail, since input params is invalid\n");
+        printf("create_thread fail, since input params is invalid\n");
 		return -1;
 	}
 
 	if(bind_cpu > 3) {
-        syslog(LOG_DEBUG, "create_thread fail, since input bind_cpu is invalid\n");
+        printf("create_thread fail, since input bind_cpu is invalid\n");
 		return -1;
 	}
 
@@ -147,14 +149,14 @@ int create_thread(char *name, int bind_cpu, int is_high_priority, thread_func ru
 
 	ret = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpu_set);
 	if(0 != ret){
-		syslog(LOG_DEBUG, "create_thread set affinity failed");
+		printf("create_thread set affinity failed");
 		return ret;
 	}
 
     thread_data->running = TRUE;
 	ret = pthread_create(&thread_data->id, &attr, (void *(*)(void *))run, thread_data);
 	if(0 != ret){
-		syslog(LOG_DEBUG, "create_thread create %s failed\n", name);
+		printf("create_thread create %s failed\n", name);
 	}
 
 	pthread_attr_destroy(&attr);
@@ -164,7 +166,7 @@ int create_thread(char *name, int bind_cpu, int is_high_priority, thread_func ru
 void destroy_notice_thread(pthread_state_t *thread_data)
 {
     if(!thread_data) {
-        syslog(LOG_DEBUG, "destroy_thread fail, since input param is invalid\n");
+        printf("destroy_thread fail, since input param is invalid\n");
 		return;
 	}
 
@@ -175,7 +177,7 @@ void destroy_notice_thread(pthread_state_t *thread_data)
 void destroy_thread(pthread_state_t *thread_data)
 {
     if(!thread_data) {
-        syslog(LOG_DEBUG, "destroy_thread fail, since input param is invalid\n");
+        printf("destroy_thread fail, since input param is invalid\n");
 		return;
 	}
 

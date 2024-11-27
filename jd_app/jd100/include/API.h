@@ -1,5 +1,5 @@
-#ifndef JD100_H
-#define JD100_H
+#ifndef API_H
+#define API_H
 
 #ifdef __cplusplus
 extern "C" {

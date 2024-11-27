@@ -4,9 +4,9 @@ case "$1" in
 	start)
 		if [ -f /data/jdapp ]; then
 			chmod +x /data/jdapp
-			/data/jdapp -r22050 -f16 -l256 &
+			/data/jdapp &
 		else
-			/usr/bin/jdapp -r22050 -f16 -l256 &
+			/usr/bin/jdapp &
 		fi
 		;;
 	stop)

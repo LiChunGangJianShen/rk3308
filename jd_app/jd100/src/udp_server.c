@@ -25,7 +25,7 @@ udp_server* udp_server_init(int bind_port)
     server_fd = socket(AF_INET, SOCK_DGRAM, 0); //AF_INET:IPV4;SOCK_DGRAM:UDP
     if(server_fd < 0)
     {
-        log_err("create socket fail!");
+        log_dbg("create socket fail!");
         free(server);
         return NULL;
     }
@@ -85,12 +85,12 @@ int udp_server_recv(udp_server *server, struct sockaddr_in *client_addr, void *b
     if (server) {
         ret = select(server->sock + 1, &rfds, NULL, NULL, &tval);
         if (ret <= 0) {
-            // log_dbg("udp no select");
+            // log_dbg("no select");
             return 0;
         }
 
         if (!FD_ISSET(server->sock, &rfds)) {
-            // log_dbg("udp sock isn't int set rfds");
+            // log_dbg("sock isn't int set rfds");
             return 0;
         }
 

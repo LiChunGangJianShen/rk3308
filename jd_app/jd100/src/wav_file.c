@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "wav_file.h"
+#include "log.h"
 
 #define RIFF    0x52494646  //"RIFF"
 #define FMT     0x666D7420  //"fmt "  注意fmt后有一个空格
@@ -76,14 +77,14 @@ void wav_stop_write(FILE* fp, struct my_wave_file_headers *fileheader, int data_
 void parse_wav_file_para(const char *path, int *ch, int *fmt, int *rate)
 {
     if(!path){
-        printf("invalid path\n");
+        log_warn("invalid path");
         return;
     }
 
     FILE *fp = NULL;
     fp = fopen(path, "r");
     if(!fp){
-        printf("open %s fail\n", path);
+        log_warn("open %s fail", path);
         return;
     }
 
@@ -94,10 +95,10 @@ void parse_wav_file_para(const char *path, int *ch, int *fmt, int *rate)
     memset(&fileheader, 0, sizeof(struct my_wave_file_headers));
     ret = fread(buff_h, sizeof(struct my_wave_file_headers), 1, fp);
     if(ret != sizeof(struct my_wave_file_headers)){
-        printf("read wave file head faile\n");
+        log_warn("read wave file head faile");
     }
     else{
-        printf("chn:%d, fmt:%d, rate:%d\n", 
+        log_warn("chn:%d, fmt:%d, rate:%d\n", 
             fileheader.st_fmt.fmt_num_channels, fileheader.st_fmt.fmt_bits_per_sample,fileheader.st_fmt.fmt_sample_rate);
 
         *ch = fileheader.st_fmt.fmt_num_channels;

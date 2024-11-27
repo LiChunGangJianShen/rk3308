@@ -15,9 +15,9 @@
 #include <linux/input.h>
 #include <math.h>
 #include <ctype.h>
+#include "log.h"
 #include <signal_handle.h>
 #include "thread.h"
-#include "log.h"
 
 static char *global_app_name;
 static int *thread_running = NULL;
@@ -50,7 +50,7 @@ static void sig_handler(int signo)
                 global_app_name, getpid(), signo);
 
     if(signo < sizeof(signal_str)/sizeof(signal_str[0]) && signal_str[signo]) {
-        log_dbg("\n\n%s(%d) catch by signal %s",
+        log_warn("\n\n%s(%d) catch by signal %s.",
                 global_app_name, getpid(), signal_str[signo]);
     }
     

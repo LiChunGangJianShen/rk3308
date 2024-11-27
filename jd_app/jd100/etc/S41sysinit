@@ -60,12 +60,30 @@ init_ti3104()
 	lineout_ctrl_setup
 }
 
+es7210_setup()
+{
+	amixer -ces7210 cset name='PGA1_setting' 7
+	amixer -ces7210 cset name='PGA2_setting' 7
+	amixer -ces7210 cset name='PGA3_setting' 7
+	amixer -ces7210 cset name='PGA4_setting' 7
+	amixer -ces7210 cset name='PGA5_setting' 7
+	amixer -ces7210 cset name='PGA6_setting' 7
+	amixer -ces7210 cset name='PGA7_setting' 7
+	amixer -ces7210 cset name='PGA8_setting' 7
+}
+
 led_init()
 {
 	# gpio1_a7
 	echo 39 > /sys/class/gpio/export
 	echo out > /sys/class/gpio/gpio39/direction
 	echo 1 > /sys/class/gpio/gpio39/value
+}
+
+vrm()
+{
+	echo 4096 > /proc/sys/vm/min_free_kbytes
+	echo 200 > /proc/sys/vm/vfs_cache_pressure
 }
 
 case "$1" in
@@ -77,7 +95,9 @@ case "$1" in
 		#echo 8 > /proc/irq/$irqno/smp_affinity
 		
 		init_ti3104
-		led_init
+		es7210_setup
+		# led_init
+		# vrm
 		;;
 	stop)
         ;;
