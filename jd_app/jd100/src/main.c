@@ -88,7 +88,7 @@ static sem_t g_sem_alg[algo_max]={0};
 #define RECORD_CMD_STOP    "record-cmd-stop"
 #define RECORD_CMD_STATUS  "record-cmd-status"
 #define MAX_REC_TIME    90   //s
-#define REC_CHN (MIC_CHN-1)+1+1 //7mic+1ref+1out
+#define REC_CHN 9 //7mic+1ref+1out
 
 typedef enum {
     algo_record_cmd_none,
@@ -411,6 +411,8 @@ static int task1(void *arg)
             }
         }
 
+        rb_read(g_ref_rngbuff[algo_1], ref_data, sizeof(ref_data));
+
         for(i = 0; i < ALGO_PERIOD_SIZE; i++){
             rec_buff[i][rec_ref] = ref_data[i];
         }
@@ -480,6 +482,7 @@ static int task2(void *arg)
                 mic_data[k] = mic_in_buff[j][i];
             }
         }
+        rb_read(g_ref_rngbuff[algo_2], ref_data, sizeof(ref_data));
 
 #if ENABLED_ALGO
         JD_MicArray_Process2(mic_data, ref_data);
@@ -532,6 +535,7 @@ static int task3(void *arg)
                 mic_data[k] = mic_in_buff[j][i];
             }
         }
+        rb_read(g_ref_rngbuff[algo_3], ref_data, sizeof(ref_data));
 #if ENABLED_ALGO
         JD_MicArray_Process3(mic_data, ref_data);
 #endif
@@ -633,7 +637,7 @@ static int task_rec(void *arg)
                         log_dbg("send cmd: %s, ret:%d\n", buf, ret);
                     }
                     else if(rest_time <= 0){
-                        snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "end_of_record");
+                        snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "finish");
                         udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         log_dbg("to end of recording\n");
                     }
@@ -689,7 +693,7 @@ static int task_rec(void *arg)
 int init_task_rec(int cpu)
 {
     int ret = 0;
-    int high_priority = TRUE;
+    int high_priority = FALSE;
 
     if(cpu < 0 || cpu > 3){
         log_warn("cpu num invalid(%d)\n", cpu);
