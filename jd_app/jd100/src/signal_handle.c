@@ -46,24 +46,24 @@ static void sig_handler(int signo)
     char **strings = NULL;
     int i = 0;
 
-    log_warn("\n\n%s(%d) catch by signal %d",
+    logw("\n\n%s(%d) catch by signal %d\n",
                 global_app_name, getpid(), signo);
 
     if(signo < sizeof(signal_str)/sizeof(signal_str[0]) && signal_str[signo]) {
-        log_warn("\n\n%s(%d) catch by signal %s.",
+        logw("\n\n%s(%d) catch by signal %s.\n",
                 global_app_name, getpid(), signal_str[signo]);
     }
     
     size = backtrace(array, 20);
     strings = backtrace_symbols(array, size);
-    log_dbg("Call Trace: size=%d", size);
+    logd("Call Trace: size=%d\n", size);
 
     if (strings) {
         for (i = 0; i < size; i++)
-            log_dbg("  %s", strings[i]);
+            logd("  %s\n", strings[i]);
         free(strings);
     } else {
-        log_dbg("Not Found\n");
+        logd("Not Found\n\n");
     }
 
     if(thread_running) {

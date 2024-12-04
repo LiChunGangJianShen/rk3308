@@ -12,7 +12,7 @@ void rk_set_gpio_export(unsigned int gpio_chip_num, unsigned char gpio_group_num
 	sprintf(file_name, "/sys/class/gpio/export");
 	fp = fopen(file_name, "w");
 	if(fp == NULL){
-		log_warn("Cannot open %s.", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return ;
 	}
 	fprintf(fp, "%d", gpio_num);
@@ -29,7 +29,7 @@ void rk_set_gpio_unexport(unsigned int gpio_chip_num, unsigned char gpio_group_n
 	sprintf(file_name, "/sys/class/gpio/unexport");
 	fp = fopen(file_name, "w");
 	if(fp == NULL){
-		log_warn("Cannot open %s.", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return ;
 	}
 	fprintf(fp, "%d", gpio_num);
@@ -46,7 +46,7 @@ int rk_set_gpio_direction_out(unsigned int gpio_chip_num, unsigned char gpio_gro
 	sprintf(file_name, "/sys/class/gpio/gpio%d/direction", gpio_num);
 	fp = fopen(file_name, "rb+");
 	if(fp == NULL){
-		log_warn("Cannot open %s.", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return -1;
 	}
 	fprintf(fp, "out");
@@ -65,7 +65,7 @@ int rk_set_gpio_direction_in(unsigned int gpio_chip_num, unsigned char gpio_grou
 	sprintf(file_name, "/sys/class/gpio/gpio%d/direction", gpio_num);
 	fp = fopen(file_name, "rb+");
 	if(fp == NULL){
-		log_warn("Cannot open %s.\n", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return -1;
 	}
 	fprintf(fp, "in");
@@ -84,7 +84,7 @@ void rk_set_gpio_value(unsigned int gpio_chip_num, unsigned char gpio_group_num,
 	sprintf(file_name, "/sys/class/gpio/gpio%d/value", gpio_num);
 	fp = fopen(file_name, "rb+");
 	if(fp == NULL){
-		log_warn("Cannot open %s.", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return ;
 	}
 	fprintf(fp, "%d", value);
@@ -102,7 +102,7 @@ int rk_get_gpio_value(unsigned int gpio_chip_num, unsigned char gpio_group_num, 
 	sprintf(file_name, "/sys/class/gpio/gpio%d/value", gpio_num);
 	fp = fopen(file_name, "rb+");
 	if(fp == NULL){
-		log_warn("Cannot open %s.", file_name);
+		logw("Cannot open %s.\n", file_name);
 		return -1;
 	}
 

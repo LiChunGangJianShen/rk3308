@@ -1,28 +1,16 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef _LOG_H_
+#define _LOG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define _LOG_INFO    1
-#define _LOG_ERR     2
-#define _LOG_WARN    3
-#define _LOG_DBG     4
+#include <syslog.h>
 
-#define LOG_PRINT(level, format, ...)\
-    do{\
-        if(level <= _LOG_ERR){\
-            fprintf(stderr, "[%s, %d] "format"\n", __func__, __LINE__, ##__VA_ARGS__);\
-        } else{\
-            fprintf(stdout, "[%s, %d] "format"\n", __func__, __LINE__, ##__VA_ARGS__);\
-        }\
-    }while(0);
-
-#define log_info(format, ...)   LOG_PRINT(_LOG_INFO, format, ##__VA_ARGS__)
-#define log_err(format, ...)    LOG_PRINT(_LOG_ERR, format, ##__VA_ARGS__)
-#define log_warn(format, ...)   LOG_PRINT(_LOG_WARN, format, ##__VA_ARGS__)
-#define log_dbg(format, ...)    LOG_PRINT(_LOG_DBG, format, ##__VA_ARGS__)
+#define logi(fmt, args...)    syslog(LOG_INFO, "[%s-%d]"fmt, __func__, __LINE__, ##args)
+#define loge(fmt, args...)    syslog(LOG_ERR, "[%s-%d]"fmt, __func__, __LINE__, ##args)
+#define logw(fmt, args...)    syslog(LOG_WARNING, "[%s-%d]"fmt, __func__, __LINE__, ##args)
+#define logd(fmt, args...)    syslog(LOG_DEBUG, "[%s-%d]"fmt, __func__, __LINE__, ##args)
 
 #ifdef __cplusplus
 }

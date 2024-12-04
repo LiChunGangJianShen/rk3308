@@ -71,6 +71,8 @@ function_init()
 		mkdir /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0
 		# echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/c_feature_unit
 		# echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/p_feature_unit
+		# echo 22050 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/c_srate
+		# echo 22050 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/p_srate
 		echo 4 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/req_number
 		ln -s /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0 /sys/kernel/config/usb_gadget/rockchip/configs/b.1/uac1.gs0
 	fi

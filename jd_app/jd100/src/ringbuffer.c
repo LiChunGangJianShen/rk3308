@@ -36,7 +36,7 @@ struct ringbuffer *rb_create(int len)
 {
     struct ringbuffer *rb = CALLOC(1, struct ringbuffer);
     if (!rb) {
-        log_err("malloc ringbuffer failed!");
+        logw("malloc ringbuffer failed!\n");
         return NULL;
     }
     rb->length = len + 1;
@@ -44,13 +44,13 @@ struct ringbuffer *rb_create(int len)
     rb->end = 0;
     rb->buffer = calloc(1, rb->length);
     if (!rb->buffer) {
-        log_err("malloc rb->buffer failed!");
+        logw("malloc rb->buffer failed!\n");
         free(rb);
         return NULL;
     }
 
     if (pthread_mutex_init(&rb->lock, NULL) != 0){
-      	log_err("%s mutex init fail", __func__);
+      	logw("mutex init fail\n");
    	}
     
     return rb;
@@ -145,7 +145,7 @@ ssize_t rb_write(struct ringbuffer *rb, const void *buf, size_t len)
     size_t left = rb_get_space_free_internal(rb);
     if (len > left) {
         rb_unlock(rb);
-        log_warn("Not enough space: %zu request, %zu available", len, left);
+        logw("Not enough space: %zu request, %zu available\n", len, left);
         return -1;
     }
 

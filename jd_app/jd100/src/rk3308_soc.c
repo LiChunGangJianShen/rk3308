@@ -25,7 +25,7 @@ rk3308_soc_t check_soc_type(void)
 
     type &= 0x1f;
     generation = (generation >> 6) & 0x3;
-    log_info("generation=%d, type=%d", generation, type);
+    logi("generation=%d, type=%d\n", generation, type);
 
     if(type == 0x02){
         if(generation == 0x01)
@@ -33,7 +33,7 @@ rk3308_soc_t check_soc_type(void)
         else if(generation == 0x02)
             soc_type = soc_rk3308bs;
         else{
-            log_err("Error soc generation");
+            loge("Error soc generation\n");
             soc_type = soc_max;
         }
     }
@@ -46,12 +46,12 @@ rk3308_soc_t check_soc_type(void)
         else if(generation == 0x02)
             soc_type = soc_rk3308hs;
         else{
-            log_err("Error soc generation");
+            loge("Error soc generation\n");
             soc_type = soc_max;
         }
     }
     else{
-        log_err("Error soc type");
+        loge("Error soc type\n");
         soc_type = soc_max;
     }
 

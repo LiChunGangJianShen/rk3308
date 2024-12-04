@@ -1,223 +1,303 @@
-#include "alsa_api.h"
 #include "log.h"
+#include "alsa_api.h"
 
-int pcm_para_setup(snd_pcm_t *pcm, alsa_para_t *para)
+static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
 {
-    int rc = -1;
+    int err = 0;
     snd_pcm_hw_params_t *hw_params;
     snd_pcm_sw_params_t *sw_params;
 
     snd_pcm_hw_params_alloca(&hw_params);
-
-    rc = snd_pcm_hw_params_any(pcm, hw_params);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_any fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_any(ppcm, hw_params)) < 0){
+        loge("snd_pcm_hw_params_any error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    rc = snd_pcm_hw_params_set_access(pcm, hw_params, para->access);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_access fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_set_access(ppcm, hw_params, alsa_params.access)) < 0){
+        loge("snd_pcm_hw_params_set_access error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    rc = snd_pcm_hw_params_set_format(pcm, hw_params, para->format);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_format fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_set_format(ppcm, hw_params, alsa_params.format)) < 0){
+        loge("snd_pcm_hw_params_set_format error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    rc = snd_pcm_hw_params_set_rate(pcm, hw_params, para->rate, 0);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_rate fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_set_channels(ppcm, hw_params, alsa_params.chn)) < 0){
+        loge("snd_pcm_hw_params_set_channels error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    log_dbg("card %s chn=%d", para->card_name, para->chn);
-    rc = snd_pcm_hw_params_set_channels(pcm, hw_params, para->chn);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_channels fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_set_rate(ppcm, hw_params, alsa_params.rate, 0)) < 0){
+        loge("snd_pcm_hw_params_set_rate error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    snd_pcm_uframes_t period_size = para->period_size;
+    snd_pcm_uframes_t period_size = alsa_params.period_size;
     int dir = 0;
-    rc = snd_pcm_hw_params_set_period_size_near(pcm, hw_params, &period_size, &dir);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_period_size_near fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params_set_period_size_near(ppcm, hw_params, &period_size, &dir)) < 0){
+        loge("snd_pcm_hw_params_set_period_size error(%s)\n", snd_strerror(err));
+        return err;
     }
-    if(para->period_size != period_size){
-        para->period_size = period_size;
+    logi("==== period_size=%lu, alsa_params.period_size=%lu\n", period_size, alsa_params.period_size);
+
+    snd_pcm_uframes_t buffer_size = alsa_params.buffer_size;
+    if((err = snd_pcm_hw_params_set_buffer_size_near(ppcm, hw_params, &buffer_size)) < 0){
+        loge("snd_pcm_hw_params_set_buffer_size error(%s)\n", snd_strerror(err));
+        return err;
     }
+    logi("==== buffer_size=%lu, alsa_params.buffer_size=%lu\n", buffer_size, alsa_params.buffer_size);
 
-    snd_pcm_uframes_t buffer_size = 4*period_size;
-    rc = snd_pcm_hw_params_set_buffer_size(pcm, hw_params, buffer_size);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params_set_buffer_size_near fail(%s)", snd_strerror(rc));
-        return -1;
-    }
-
-    char info[256] = {0};
-    sprintf(info, "card: perido_size=%d, buffer_size=%d", (int)period_size, (int)buffer_size);
-    log_info("%s", info);
-
-    rc = snd_pcm_hw_params(pcm, hw_params);
-    if(rc < 0){
-        log_err("snd_pcm_hw_params fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_hw_params(ppcm, hw_params)) < 0){
+        loge("snd_pcm_hw_params error(%s)\n", snd_strerror(err));
+        return err;
     }
 
     snd_pcm_sw_params_alloca(&sw_params);
-    rc = snd_pcm_sw_params_current(pcm, sw_params);
-    if(rc < 0){
-        log_err("snd_pcm_sw_params_current fail(%s)", snd_strerror(rc));
-        return -1;
+    if((err = snd_pcm_sw_params_current(ppcm, sw_params)) < 0){
+        loge("snd_pcm_sw_params_current error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    rc = snd_pcm_sw_params_current(pcm, sw_params);
-    if(rc < 0){
-        log_err("snd_pcm_sw_params_current fail(%s)", snd_strerror(rc));
-        return -1;
+    if(alsa_params.stream == SND_PCM_STREAM_CAPTURE){
+        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, 0)) < 0){
+            loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
+            return err;
+        }
+        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, alsa_params.buffer_size)) < 0){
+            loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
+            return err;
+        }
+    }
+    else if(alsa_params.stream == SND_PCM_STREAM_PLAYBACK){
+        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, alsa_params.period_size)) < 0){
+            loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
+            return err;
+        }
+        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, alsa_params.buffer_size)) < 0){
+            loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
+            return err;
+        }
     }
 
-    if(para->stream == SND_PCM_STREAM_CAPTURE){
-        rc = snd_pcm_sw_params_set_start_threshold(pcm, sw_params, 0);
-        if(rc < 0){
-            log_err("snd_pcm_sw_params_set_start_threshold fail(%s)", snd_strerror(rc));
-            return -1;
-        }
-        rc = snd_pcm_sw_params_set_stop_threshold(pcm, sw_params, buffer_size);
-        if(rc < 0){
-            log_err("snd_pcm_sw_params_set_stop_threshold fail(%s)", snd_strerror(rc));
-            return -1;
-        }
-    }
-    else if(para->stream == SND_PCM_STREAM_PLAYBACK){
-        rc = snd_pcm_sw_params_set_start_threshold(pcm, sw_params, period_size);
-        if(rc < 0){
-            log_err("snd_pcm_sw_params_set_start_threshold fail(%s)", snd_strerror(rc));
-            return -1;
-        }
-        rc = snd_pcm_sw_params_set_stop_threshold(pcm, sw_params, buffer_size);
-        if(rc < 0){
-            log_err("snd_pcm_sw_params_set_stop_threshold fail(%s)", snd_strerror(rc));
-            return -1;
-        }
-    }
-    else{
-        log_err("card %s invalid stream", para->card_name);
+    if((err = snd_pcm_sw_params(ppcm, sw_params)) < 0){
+        loge("snd_pcm_sw_params error(%s)\n", snd_strerror(err));
+        return err;
     }
 
-    rc = snd_pcm_sw_params(pcm, sw_params);
-    if(rc < 0){
-        log_err("snd_pcm_sw_params fail(%s)", snd_strerror(rc));
-        return -1;
-    }
-
-    return 0;
+    return err;
 }
 
-int init_pcm(snd_pcm_t **pcm, alsa_para_t *para)
+int init_pcm(snd_pcm_t **ppcm, alsa_api_para_t alsa_params)
 {
-    int rc = -1;
+    int err = 0;
 
-    rc = snd_pcm_open(pcm, para->card_name, para->stream, para->mode);
-    if(rc < 0){
-        log_err("card %s open fail", para->card_name);
-        return rc;
+    logd("card name(%s)\n", alsa_params.card_name);
+    if((err = snd_pcm_open(ppcm, alsa_params.card_name, alsa_params.stream, alsa_params.block)) < 0){
+        loge("snd_pcm_open error(%s)\n", snd_strerror(err));
+        return -1;
     }
 
-    rc = pcm_para_setup(*pcm, para);
-    if(rc < 0){
-        log_err("card %s aprams setup fail", para->card_name);
-        return rc;
+    if((err = set_pcm_params(*ppcm, alsa_params)) < 0){
+        logw("set_pcm_params error\n");
+        snd_pcm_close(*ppcm);
     }
-    return rc;
+
+    return err;
 }
 
-void destroy_pcm(snd_pcm_t *pcm)
+void exit_pcm(snd_pcm_t *ppcm)
 {
-    if(pcm){
-        snd_pcm_drop(pcm);
-        snd_pcm_close(pcm);
-    }
+    snd_pcm_drop(ppcm);
+    snd_pcm_close(ppcm);
 }
 
-static int xrun_recovery(snd_pcm_t *pcm, int err)
+static int xrun_recovery(snd_pcm_t *ppcm, int err)
 {
     if (err == -EPIPE) {    /* under-run */
-        err = snd_pcm_prepare(pcm);
+        err = snd_pcm_prepare(ppcm);
         if (err < 0)
-            log_dbg("Can't recovery from underrun, prepare failed: %s", snd_strerror(err));
+            logw("Can't recovery from underrun, prepare failed: %s\n", snd_strerror(err));
         return 0;
     } else if (err == -ESTRPIPE) {
-        while ((err = snd_pcm_resume(pcm)) == -EAGAIN)
+        while ((err = snd_pcm_resume(ppcm)) == -EAGAIN)
             sleep(1);   /* wait until the suspend flag is released */
         if (err < 0) {
-            err = snd_pcm_prepare(pcm);
+            err = snd_pcm_prepare(ppcm);
             if (err < 0)
-                log_dbg("Can't recovery from suspend, prepare failed: %s", snd_strerror(err));
+                logw("Can't recovery from suspend, prepare failed: %s\n", snd_strerror(err));
         }
         return 0;
     }
     return err;
 }
 
-int pcm_in(snd_pcm_t *pcm, void *buff, int size, const char *card_name)
+int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
 {
-    int rc = 0;
     int err = 0;
+    int expect = size;
 
-    rc = snd_pcm_readi(pcm, buff, size);
-    if(rc < 0){
-        log_dbg("card %s overrun", card_name);
-        err = rc;
-        err = xrun_recovery(pcm, err);
+    while(expect){
+        err = snd_pcm_readi(ppcm, buf, expect);
+        if(err < 0){
+            logw("pcm(%s) in xrun(%s)\n", card_name, snd_strerror(err));
+            err = xrun_recovery(ppcm, err);
+        }
+        else{
+            expect -= err;
+        }
     }
 
-    return rc;
+    return err;
 }
 
-int pcm_out(snd_pcm_t *pcm, void *buff, int size, const char *card_name)
+int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
 {
-    int rc = 0;
     int err = 0;
+    int expect = size;
 
-    rc = snd_pcm_writei(pcm, buff, size);
-    if(rc < 0){
-        log_dbg("card %s underrun", card_name);
-        err = rc;
-        err = xrun_recovery(pcm, err);
+    while(expect){
+        err = snd_pcm_writei(ppcm, buf, expect);
+        if(err < 0){
+            logw("pcm(%s) out xrun(%s)\n", card_name, snd_strerror(err));
+            err = xrun_recovery(ppcm, err);
+        }
+        else{
+            expect -= err;
+        }
     }
 
-    return rc;
+    return err;
 }
 
-int check_pcm_state(snd_pcm_t *pcm, int state, const char *alias)
+
+int check_pcm_state(snd_pcm_t *ppcm, int state, const char *alias)
 {
     int ret = -1;
-    if(!pcm){
-        log_dbg("invalid ppcm");
+    if(!ppcm){
+        loge("invalid ppcm\n");
         return -1;
     }
 
     if(-EPIPE == state){
-        log_dbg("[%s] xrun occurred(%s)", alias, snd_strerror(state));
-        snd_pcm_prepare(pcm);
+        loge("[%s] xrun occurred(%s)\n", alias, snd_strerror(state));
+        snd_pcm_prepare(ppcm);
     }
     else if(-ESTRPIPE == state){
-        log_dbg("[%s] suspend occurred(%s)", alias, snd_strerror(state));
-        while((ret = snd_pcm_resume(pcm)) == -EAGAIN)
+        loge("[%s] suspend occurred(%s)\n", alias, snd_strerror(state));
+        while((ret = snd_pcm_resume(ppcm)) == -EAGAIN)
             usleep(1000);
         if(ret == -ENOSYS){
-            log_dbg("use the snd_pcm_prepare to recovery(%s)", snd_strerror(ret));
-            ret = snd_pcm_prepare(pcm);
+            loge("use the snd_pcm_prepare to recovery(%s)\n", snd_strerror(ret));
+            ret = snd_pcm_prepare(ppcm);
         }
     }
     else if(state < 0){
-        log_dbg("%s", snd_strerror(state));
+        loge("%s\n", snd_strerror(state));
     }
 
     return ret;
+}
+
+int alsa_cset(char *card, char *name, int value)
+{
+	int err;
+	char name_str[128] = {0};
+	char value_str[16];
+	static snd_ctl_t *handle = NULL;
+	snd_ctl_elem_info_t *info;
+	snd_ctl_elem_id_t *id;
+	snd_ctl_elem_value_t *control;
+	snd_ctl_elem_info_alloca(&info);
+	snd_ctl_elem_id_alloca(&id);
+	snd_ctl_elem_value_alloca(&control);
+
+	sprintf(name_str, "name='%s'", name);
+	sprintf(value_str, "%d", value);
+	// printf("%s %s\n", name_str, value_str);
+	if ((err =snd_ctl_ascii_elem_id_parse(id, name_str)) < 0) {
+		fprintf(stderr, "Wrong control identifier: %s\n", name_str);
+		return err;
+	}
+
+	if (handle == NULL &&
+		(err = snd_ctl_open(&handle, card, 0)) < 0) {
+			loge("Control %s open error: %s\n", card, snd_strerror(err));
+			return err;
+	}
+
+	snd_ctl_elem_info_set_id(info, id);
+	if ((err = snd_ctl_elem_info(handle, info)) < 0) {
+		loge("Cannot find the given element from control %s\n", name_str);
+		snd_ctl_close(handle);
+		handle = NULL;
+		return err;
+	}
+
+	snd_ctl_elem_info_get_id(info, id);     /* FIXME: Remove it when hctl find works ok !!! */
+
+	snd_ctl_elem_value_set_id(control, id);
+	if ((err = snd_ctl_elem_read(handle, control)) < 0) {
+		loge("Cannot read the given element from control %s\n", name_str);
+		snd_ctl_close(handle);
+		handle = NULL;
+		return err;
+	}
+
+	err = snd_ctl_ascii_value_parse(handle, control, info, value_str);
+	if (err < 0) {
+		loge("Control %s parse error: %s\n", name_str, snd_strerror(err));
+		snd_ctl_close(handle);
+		handle = NULL;
+		return err;
+	}
+
+	if ((err = snd_ctl_elem_write(handle, control)) < 0) {
+		loge("Control %s element write error: %s\n", name_str, snd_strerror(err));
+		snd_ctl_close(handle);
+		handle = NULL;
+		return err;
+	}
+
+	snd_ctl_close(handle);
+	handle = NULL;
+	return 0;
+}
+
+
+int get_card_num(const char *name)
+{
+	if(!name){
+		logw("invalid name\n");
+		return -1;
+	}
+#if 0
+	FILE *fp;
+	int ret;
+	char buff[256];
+
+	sprintf(buff, "cat /proc/asound/cards | grep %s | grep ]: | awk '{print $1}'", name);
+	fp = popen(buff, "r");
+	if(fp == NULL){
+		printf("open %s fail\n", buff);
+		return -1;
+	}
+	memset(buff, 0, sizeof(buff));
+	fread(buff, 1, sizeof(buff), fp);
+	buff[strlen(buff)]=0;
+	ret = atoi(buff);
+
+	if(fp){
+		pclose(fp);
+		fp = NULL;
+	}
+
+    return ret;
+#else
+//The accepted formats for "string" are:
+//The index of the card (as listed in /proc/asound/cards), given as string
+//The ID of the card (as listed in /proc/asound/cards)
+//The control device name (like /dev/snd/controlC0)
+    return snd_card_get_index(name);
+#endif
 }

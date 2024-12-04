@@ -77,14 +77,14 @@ void wav_stop_write(FILE* fp, struct my_wave_file_headers *fileheader, int data_
 void parse_wav_file_para(const char *path, int *ch, int *fmt, int *rate)
 {
     if(!path){
-        log_warn("invalid path");
+        logw("invalid path\n");
         return;
     }
 
     FILE *fp = NULL;
     fp = fopen(path, "r");
     if(!fp){
-        log_warn("open %s fail", path);
+        logw("open %s fail\n", path);
         return;
     }
 
@@ -95,10 +95,10 @@ void parse_wav_file_para(const char *path, int *ch, int *fmt, int *rate)
     memset(&fileheader, 0, sizeof(struct my_wave_file_headers));
     ret = fread(buff_h, sizeof(struct my_wave_file_headers), 1, fp);
     if(ret != sizeof(struct my_wave_file_headers)){
-        log_warn("read wave file head faile");
+        logw("read wave file head faile\n");
     }
     else{
-        log_warn("chn:%d, fmt:%d, rate:%d\n", 
+        logw("chn:%d, fmt:%d, rate:%d\n", 
             fileheader.st_fmt.fmt_num_channels, fileheader.st_fmt.fmt_bits_per_sample,fileheader.st_fmt.fmt_sample_rate);
 
         *ch = fileheader.st_fmt.fmt_num_channels;

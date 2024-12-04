@@ -71,14 +71,20 @@ int main(int argc, char *argv[])
                 if(udp_client_send(client, buf, sizeof(buf)) > 0) {
                     if(udp_client_recv(client, buf, sizeof(buf)) > 0) {
                         printf("%s\n", buf);
+                        if(strstr(buf, "=end_of_record")){
+                            strncpy(buf, RECORD_CMD_STOP, sizeof(buf));
+                            if(udp_client_send(client, buf, sizeof(buf)) > 0) {
+                                printf("%s\n", buf);
+                            }
+                        }
                         if(strstr(buf, "=finish")) {
-                            usleep(2000*1000);
+                            sleep(1);
                             printf("stop record...\n");
                             break;
                         }
                     }
                 }
-                usleep(1000*1000);
+                sleep(1);
             }
         }
     }

@@ -18,14 +18,14 @@ udp_server* udp_server_init(int bind_port)
     udp_server* server = (udp_server*)malloc(sizeof(udp_server));
 
     if(!server) {
-        log_err("create server malloc fail!");
+        logd("create server malloc fail!\n");
         return NULL;
     }
 
     server_fd = socket(AF_INET, SOCK_DGRAM, 0); //AF_INET:IPV4;SOCK_DGRAM:UDP
     if(server_fd < 0)
     {
-        log_dbg("create socket fail!");
+        logd("create socket fail!\n");
         free(server);
         return NULL;
     }
@@ -38,7 +38,7 @@ udp_server* udp_server_init(int bind_port)
     ret = bind(server_fd, (struct sockaddr*)&ser_addr, sizeof(ser_addr));
     if(ret < 0)
     {
-        log_err("socket bind fail!");
+        logd("socket bind fail!\n");
         close(server_fd);
         free(server);
         return NULL;
@@ -85,12 +85,12 @@ int udp_server_recv(udp_server *server, struct sockaddr_in *client_addr, void *b
     if (server) {
         ret = select(server->sock + 1, &rfds, NULL, NULL, &tval);
         if (ret <= 0) {
-            // log_dbg("no select");
+            // logd("no select\n");
             return 0;
         }
 
         if (!FD_ISSET(server->sock, &rfds)) {
-            // log_dbg("sock isn't int set rfds");
+            // logd("sock isn't int set rfds\n");
             return 0;
         }
 

@@ -26,6 +26,7 @@ $(TARGET): $(OBJ)
 	$(STRIP) $(TARGET)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
 	cp -f $(LIB_DIR)/libjdaudio.so ../../device/rockchip/rk3308/oem_jd100/
+	cp -f $(ETC_DIR)/asound.conf ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
 	cp -f $(ETC_DIR)/S41sysinit ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
 	cp -f $(ETC_DIR)/S50usbdevice ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
