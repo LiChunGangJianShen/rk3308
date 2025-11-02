@@ -1,0 +1,54 @@
+#include "rk_serial_num.h"
+#include "rk_vendor_storage.h"
+#include "aes.h"
+#include "thread.h"
+#include "signal_handle.h"
+#include "comm.h"
+#include "cpu.h"
+#include "udp.h"
+#include "crc.h"
+#include <stdio.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <sys/select.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include "aes_report.h"
+
+
+static int thread_running = 0;
+
+
+int main()
+{
+#if 1
+    char buf[256]={0};
+    get_process_name(buf, sizeof(buf));
+
+    thread_running = 1;
+    signal_hanler_init(buf, &thread_running);
+    hid_task_init(CPU_0, 60);
+    aes_udp_task_init(CPU_0, 60);
+
+    while (thread_running)
+    {
+        sleep(1);
+    }
+
+    aes_udp_task_destroy();
+    hid_task_destroy();
+    signal_hanler_exit();
+#else
+    vendor_storage_erase();
+#endif
+
+    return 0;
+}

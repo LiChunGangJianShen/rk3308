@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308hs-h20.dtsi"
+
+/ {
+	model = "Rockchip RK3308 evb digital-pdm mic v13 board";
+	compatible = "rockchip,rk3308-evb-dmic-pdm-v13", "rockchip,rk3308";
+};
+
+&acodec {
+	status = "okay";
+	rockchip,micbias1;
+	rockchip,micbias2;
+	rockchip,no-deep-low-power;
+	rockchip,en-always-grps = <1>;
+	rockchip,adc-grps-route = <1 2 3 0>;
+};
+
+&i2s_8ch_2 {
+	status = "okay";
+};
+
+&acodec_sound {
+	status = "okay";
+};
+
+&sfc {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart4_xfer>;
+
+};
+
+&wdt {
+	status = "okay";
+};
+
+&u2phy_otg {
+	rockchip,vbus-always-on;
+};
+
+&i2c3 {
+	status = "okay";
+};

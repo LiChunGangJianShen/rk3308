@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308bs-h20.dtsi"
+
+/ {
+	model = "Rockchip RK3308B-S evb analog mic v11 board";
+	compatible = "rockchip,rk3308bs-evb-amic-v11", "rockchip,rk3308";
+
+	aiao-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "h20aiao";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_2ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+};
+
+&i2s_2ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
+&dummy_codec{
+	status = "okay";
+    compatible = "rockchip,dummy-codec";
+    #sound-dai-cells = <0>;
+    clocks = <&cru SCLK_I2S0_2CH_OUT>;
+    clock-names = "mclk";
+};
+
+&sfc {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart4_xfer>;
+
+};
+
+&wdt {
+	status = "okay";
+};
+
+&u2phy_otg {
+	rockchip,vbus-always-on;
+};
+
+&i2c3 {
+	status = "okay";
+};

@@ -1,0 +1,140 @@
+#!/bin/sh
+#
+# setup configfs for adbd, usb mass storage and MTP....
+#
+
+ADB_EN=off
+UAC1_EN=off
+HID_EN=off
+
+UAC_NAME="H20"
+
+make_config_string()
+{
+	tmp=$CONFIG_STRING
+	if [ -n "$CONFIG_STRING" ]; then
+		CONFIG_STRING=${tmp}_${1}
+	else
+		CONFIG_STRING=$1
+	fi
+}
+
+parameter_init()
+{
+	while read line
+	do
+		case "$line" in
+			usb_adb_en)
+				ADB_EN=on
+				make_config_string adb
+				;;
+			usb_uac1_en)
+				UAC1_EN=on
+				make_config_string uac1
+				;;
+			usb_hid_en)
+				HID_EN=on
+				make_config_string hid
+				;;
+		esac
+	done < $DIR/.usb_config
+
+	VID=0x2207
+	PID=0x0019
+}
+
+configfs_init()
+{
+	mount -t configfs none /sys/kernel/config
+	mkdir /sys/kernel/config/usb_gadget/rockchip  -m 0770
+	echo $VID > /sys/kernel/config/usb_gadget/rockchip/idVendor
+	echo $PID > /sys/kernel/config/usb_gadget/rockchip/idProduct
+	echo 0xEF > /sys/kernel/config/usb_gadget/rockchip/bDeviceClass
+	echo 0x02 > /sys/kernel/config/usb_gadget/rockchip/bDeviceSubClass
+	echo 0x01 > /sys/kernel/config/usb_gadget/rockchip/bDeviceProtocol
+	mkdir /sys/kernel/config/usb_gadget/rockchip/strings/0x409   -m 0770
+	
+	sn="0123456789ABCDEF"
+	echo $sn > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/serialnumber
+	echo "Rockchip"  > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/manufacturer
+	echo $UAC_NAME > /sys/kernel/config/usb_gadget/rockchip/strings/0x409/product
+	mkdir /sys/kernel/config/usb_gadget/rockchip/configs/b.1  -m 0770
+	mkdir /sys/kernel/config/usb_gadget/rockchip/configs/b.1/strings/0x409  -m 0770
+	echo 500 > /sys/kernel/config/usb_gadget/rockchip/configs/b.1/MaxPower
+	echo \"$CONFIG_STRING\" > /sys/kernel/config/usb_gadget/rockchip/configs/b.1/strings/0x409/configuration
+}
+
+function_init()
+{
+	if [ $UAC1_EN = on ];then
+	    echo $UAC_NAME > /proc/uac
+		mkdir /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0
+		# echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/c_feature_unit
+		# echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/p_feature_unit
+		# echo 22050 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/c_srate
+		# echo 22050 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/p_srate
+		echo 4 > /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0/req_number
+		ln -s /sys/kernel/config/usb_gadget/rockchip/functions/uac1.gs0 /sys/kernel/config/usb_gadget/rockchip/configs/b.1/uac1.gs0
+	fi
+
+	if [ $HID_EN = on ];then
+		# mkdir /sys/kernel/config/usb_gadget/rockchip/functions/hid_consumer.usb0
+		# ln -s /sys/kernel/config/usb_gadget/rockchip/functions/hid_consumer.usb0 /sys/kernel/config/usb_gadget/rockchip/configs/b.1/hid_consumer.usb0
+
+		mkdir /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0
+		echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0/protocol
+		echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0/subclass
+		echo 1024 > /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0/report_length
+		echo -ne \\x06\\x00\\xFF\\x09\\x00\\xA1\\x01\\x09\\x00\\x15\\x00\\x26\\xFF\\x00\\x85\\x60\\x75\\x08\\x96\\xFF\\x03\\x91\\x02\\x09\\x00\\x15\\x00\\x26\\xFF\\x00\\x85\\x61\\x75\\x08\\x96\\xFF\\x03\\x81\\x02\\xC0 > /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0/report_desc
+		ln -s /sys/kernel/config/usb_gadget/rockchip/functions/hid.usb0 /sys/kernel/config/usb_gadget/rockchip/configs/b.1/hid.usb0
+	fi
+	
+	if [ $ADB_EN = on ];then
+		mkdir /sys/kernel/config/usb_gadget/rockchip/functions/ffs.adb
+		ln -s /sys/kernel/config/usb_gadget/rockchip/functions/ffs.adb /sys/kernel/config/usb_gadget/rockchip/configs/b.1/ffs.adb
+	fi
+}
+
+case "$1" in
+start)
+	DIR=$(cd `dirname $0`; pwd)
+	if [ ! -e "$DIR/.usb_config" ]; then
+		echo "$0: Cannot find .usb_config"
+		exit 0
+	fi
+
+	parameter_init
+	if [ -z $CONFIG_STRING ]; then
+		echo "$0: no function be selected"
+		exit 0
+	fi
+	configfs_init
+	function_init
+
+	if [ $ADB_EN = on ] ;then
+		mkdir -p /dev/usb-ffs/adb
+		mount -o uid=2000,gid=2000 -t functionfs adb /dev/usb-ffs/adb
+		export service_adb_tcp_port=5555
+		adbd&
+		sleep 0.2
+	fi
+
+	UDC=`ls /sys/class/udc/| awk '{print $1}'`
+	echo $UDC > /sys/kernel/config/usb_gadget/rockchip/UDC
+	;;
+stop)
+	echo "none" > /sys/kernel/config/usb_gadget/rockchip/UDC
+	;;
+restart|reload)
+	UDC=`ls /sys/class/udc/| awk '{print $1}'`
+	CFG_UDC=`cat /sys/kernel/config/usb_gadget/rockchip/UDC`
+	if [ x$UDC != x$CFG_UDC ]; then
+		echo $UDC > /sys/kernel/config/usb_gadget/rockchip/UDC
+	fi
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit 0

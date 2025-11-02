@@ -1,7 +1,10 @@
 
 
-DIRS = jd100 \
+DIRS = h20_hs \
 	data_rec \
+	# h20	\
+	# encrypt \
+	# jd100 \
 	
 .PHONY: all clean
 

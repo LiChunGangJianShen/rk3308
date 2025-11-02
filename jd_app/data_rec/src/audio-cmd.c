@@ -59,13 +59,7 @@ int main(int argc, char *argv[])
                     printf("%s\n", buf);
                 }
             }
-            if(argv[2]){
-                memset(buf, 0, sizeof(buf));
-                strncpy(buf, argv[2], sizeof(buf));
-                if(udp_client_send(client, buf, sizeof(buf)) > 0) {
-                    printf("%s\n", buf);
-                }
-            }
+
             while (1) {
                 strncpy(buf, RECORD_CMD_STATUS, sizeof(buf));
                 if(udp_client_send(client, buf, sizeof(buf)) > 0) {
