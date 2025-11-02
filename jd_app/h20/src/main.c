@@ -29,7 +29,6 @@
 #include "build_time.h"
 #include "app_version.h"
 #include "rkgpio.h"
-#include "aes_report.h"
 
 #define CPU_0   (0)
 #define CPU_1   (1)
@@ -120,10 +119,7 @@ int main(int argc, char **argv)
     playback_task_init(CPU_0, 70);
     key_task_init(CPU_0, 69);
     serial_task_init(CPU_0, 69);
-#ifdef AES_TEST
-    logi("==== aes test ====\n");
-    hid_task_init(CPU_0, 60);
-#endif
+
     int state = 0;
     init_led_run();
     while(thread_running){
@@ -132,9 +128,6 @@ int main(int argc, char **argv)
         sleep(1);
     }
 
-#ifdef AES_TEST
-    hid_task_destroy();
-#endif
 	exit_led_run();
     key_task_exit();
     serial_task_exit();

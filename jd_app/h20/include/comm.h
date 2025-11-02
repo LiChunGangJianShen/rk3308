@@ -13,10 +13,6 @@ int generate_1khz_sine_wave(int lenght, int sample_rate, void *sine_wave_buff);
 unsigned long check_time_increment_ms(struct timeval tva, struct timeval tvb);
 unsigned long check_time_increment_s(struct timeval tva, struct timeval tvb);
 
-#define safe_free(p) do { free(p); (p) = NULL; } while(0)
-
-char *get_process_name(char *buffer, size_t buffer_size);
-
 #ifdef __cplusplus
 }
 #endif
