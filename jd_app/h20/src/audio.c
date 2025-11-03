@@ -22,8 +22,8 @@
 #define ALG_COST_TIME   2
 
 //Asound Card Name
-#define CAPTURE_CARD_NAME  "default"   //default capture
-#define PLAYBACK_CARD_NAME  "default"   //default playback
+#define CAPTURE_CARD_NAME  "hw:h20aiao,0"//"default"   //default capture
+#define PLAYBACK_CARD_NAME  "hw:h20aiao,0"//"default"   //default playback
 //Channels
 #define CAPTURE_CHN   2
 #define PLAYBACK_CHN    2
@@ -125,35 +125,34 @@ static int key_task(void *arg)
     logi("key task start\n");
 
     int cur_mute=0, last_mute=0, already_mute=0;
-    int cur_fb=0, fb_off=0;
+    int cur_fb=0, last_fb=0;
     init_fb_gpio();
     init_mute_gpio();
 
     while(key_task_state.running){
         cur_fb = check_fb_state();
-        if(!cur_fb){
-            if(!fb_off){
-                g_cur_fb_state = FB_OFF;
-                fb_off = 1;
+        if(cur_fb != last_fb){
+            last_fb = cur_fb;
+            if(!cur_fb){
+                g_cur_fb_state = FB_ON;
             }
             else{
-                g_cur_fb_state = FB_ON;
-                fb_off = 0;
+                g_cur_fb_state = FB_OFF;
             }
+            logi("bypass state: %s\n", g_cur_fb_state?"off":"on");
             JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
         }
 
         cur_mute = check_mute_state();
         if(cur_mute && !last_mute){
-            logi("%s", already_mute?"unmute":"mute");
-            if(already_mute){
-                already_mute = 0;
-                JDZH_FeedbackDestroy_MuteOnOff(0);
-            }
-            else{
-                already_mute = 1;
+            if(!already_mute){
                 JDZH_FeedbackDestroy_MuteOnOff(1);
             }
+            else{
+                JDZH_FeedbackDestroy_MuteOnOff(0);
+            }
+            already_mute = !already_mute;
+            logi("mic state: %s\n", already_mute?"on":"off");
         }
         last_mute = cur_mute;
 
@@ -656,9 +655,9 @@ static int capture_task(void *arg)
 
     memset(capture_buff, 0, sizeof(capture_buff));
 
-    for(int i = 0; i < alg_idx_max; i++){
-        sem_wait(&g_sem_alg_ready[i]);
-    }
+    // for(int i = 0; i < alg_idx_max; i++){
+    //     sem_wait(&g_sem_alg_ready[i]);
+    // }
 
     memset(&params_capture, 0, sizeof(params_capture));
     params_capture.block = SND_PCM_NONBLOCK;
@@ -682,6 +681,7 @@ static int capture_task(void *arg)
         if(ppcm_capture){
             avail_frames = snd_pcm_avail(ppcm_capture);
             if(avail_frames >= PERIOD_SIZE){
+                memset(capture_buff, 0, sizeof(capture_buff));
                 err = pcm_in(ppcm_capture, capture_buff, PERIOD_SIZE, "capture");
                 if(err > 0){
                     get_frames += err;
@@ -751,9 +751,9 @@ static int playback_task(void *arg)
     audio_fmt_t tmpbuff[PERIOD_SIZE];
     snd_pcm_sframes_t avail_frames;
 
-    for(int i = 0; i < alg_idx_max; i++){
-        sem_wait(&g_sem_alg_ready1[i]);
-    }
+    // for(int i = 0; i < alg_idx_max; i++){
+    //     sem_wait(&g_sem_alg_ready1[i]);
+    // }
     memset(playback_buff, 0, sizeof(playback_buff));
     memset(tmpbuff, 0, sizeof(tmpbuff));
     memset(&params_playback, 0, sizeof(params_playback));

@@ -2,9 +2,9 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-251027-2.2.14.a
+ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-251102-2.2.15.a
 RUN_ALGO_LIB_DIR = /oem
-USE_DYNAMIC_LIB	= 1
+USE_DYNAMIC_LIB	= 0
 
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
 CXXFLAGS = -fpermissive
