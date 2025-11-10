@@ -30,15 +30,15 @@ else
 $(error Unsupported platform: $(PLATFORM))
 endif
 
-# all: $(TARGET)
-# $(TARGET): $(OBJ)
-# 	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
-# 	$(STRIP) $(TARGET)
+all: $(TARGET)
+$(TARGET): $(OBJ)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
+	$(STRIP) $(TARGET)
 
-all: $(TARGET_SO)
-$(TARGET_SO): $(OBJ)
-	$(CC) $(SO_CFLAGS) $(SO_LDFLAGS) -o $(TARGET_SO) $(OBJ)
-	$(STRIP) $(TARGET_SO)
+#all: $(TARGET_SO)
+#$(TARGET_SO): $(OBJ)
+#	$(CC) $(SO_CFLAGS) $(SO_LDFLAGS) -o $(TARGET_SO) $(OBJ)
+#	$(STRIP) $(TARGET_SO)
 
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)

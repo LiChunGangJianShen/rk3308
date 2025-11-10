@@ -11,7 +11,7 @@ extern "C" {
 #define AES_KEYLEN 32    // 32字节密钥长度
 #define AES_keyExpSize 240
 
-#define AES_FEATURE_ID  "8cac"
+#define AES_FEATURE_ID  "8bac97e2"
 
 typedef struct {
     uint8_t round_key[AES_keyExpSize];

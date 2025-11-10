@@ -27,28 +27,29 @@
 static int thread_running = 0;
 
 
-int main()
+int main(int argc, char **argv)
 {
-#if 1
+
+    if(argc >= 2 && !strcmp(argv[1], "erase")){
+        vendor_storage_erase();
+        return 0;
+    }
     char buf[256]={0};
     get_process_name(buf, sizeof(buf));
 
     thread_running = 1;
     signal_hanler_init(buf, &thread_running);
     hid_task_init(CPU_0, 60);
-    aes_udp_task_init(CPU_0, 60);
+    //aes_udp_task_init(CPU_0, 60);
 
     while (thread_running)
     {
         sleep(1);
     }
 
-    aes_udp_task_destroy();
+    //aes_udp_task_destroy();
     hid_task_destroy();
     signal_hanler_exit();
-#else
-    vendor_storage_erase();
-#endif
 
     return 0;
 }
