@@ -5,11 +5,11 @@
 extern "C" {
 #endif
 
-#define _LOG_INFO    1
-#define _LOG_ERR     2
-#define _LOG_WARN    3
+#define _LOG_ERR     1
+#define _LOG_WARN    2
+#define _LOG_INFO    3
 #define _LOG_DBG     4
-#define _LOG_DEF     _LOG_DBG
+#define _LOG_DEF     _LOG_INFO
 
 #define LOG_PRINT(level, format, ...)\
     do{\

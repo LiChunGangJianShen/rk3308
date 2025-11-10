@@ -85,7 +85,7 @@ static pthread_state_t serial_task_state;
 
 #define FB_ON       1
 #define FB_OFF      0
-static int g_cur_fb_state = 0;
+static int g_cur_fb_state = 1;
 static int g_noise_state = 0;
 // static const int g_level_eq[]={-12.0, -11.5, -11.0, -10.5, -};
 static float g_eq[16] = {0.0};
@@ -151,12 +151,13 @@ static int key_task(void *arg)
             else{
                 JDZH_FeedbackDestroy_MuteOnOff(0);
             }
+
             already_mute = !already_mute;
-            logi("mic state: %s\n", already_mute?"on":"off");
+            logi("mic state: %s\n", already_mute?"off":"on");
         }
         last_mute = cur_mute;
 
-        usleep(100);
+        usleep(10000);
     }
 
     destory_fb_gpio();

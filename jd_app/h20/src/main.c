@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     logi("%s start\n", process_name);
     signal_hanler_init(process_name, &thread_running);
     snprintf(info, sizeof(info), "\n\nAPP: %s\nbuild: %s\napp:   %s\nalgo:  %s\n\n", process_name, BUILD_TIME, APP_VERSION, JDZH_FeedbackDestroy_GetVersion());
-    logd("%s", info);
+    logi("%s", info);
     write_file_str("/tmp/version", info);
 #if ENABLE_ALGO
     bool algo_init1 = false;
@@ -153,8 +153,8 @@ err_exit:
         JDZH_FeedbackDestroy_Close3();
     }
 #endif
-    signal_hanler_exit();
     logi("%s stop\n", process_name);
+    signal_hanler_exit();
 
     return 0;
 }
