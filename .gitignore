@@ -27,3 +27,5 @@ device/rockchip/rk3308/oem
 buildroot/board/rockchip/rk3308/fs-overlay/
 device/rockchip/.BoardConfig.mk
 device/rockchip/rk3308/oem_h20/
+jd_app/h20/lib/
+jd_app/h20_hs/lib/
