@@ -2,7 +2,7 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-superdog-251110-2.2.15.a
+ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-20251112-2.2.15.a
 RUN_ALGO_LIB_DIR = /oem
 USE_DYNAMIC_LIB	= 0
 
