@@ -84,26 +84,26 @@ int main(int argc, char **argv)
     get_executable_path(path, process_name, PATH_MAX);
     logi("%s start\n", process_name);
     signal_hanler_init(process_name, &thread_running);
-    snprintf(info, sizeof(info), "\n\nAPP: %s\nbuild: %s\napp:   %s\nalgo:  %s\n\n", process_name, BUILD_TIME, APP_VERSION, JDFB48k_GetVersion());
+    snprintf(info, sizeof(info), "\n\nAPP: %s\nbuild: %s\napp:   %s\nalgo:  %s\n\n", process_name, BUILD_TIME, APP_VERSION, JDZH_H20S_GetVersion());
     logi("%s", info);
     write_file_str("/tmp/version", info);
 #if ENABLE_ALGO
     bool algo_init1 = false;
     bool algo_init2 = false;
     bool algo_init3 = false;
-    algo_init1 = JDFB48k_Init1();
+    algo_init1 = JDZH_H20S_Init1();
     if(algo_init1 == false){
-        loge("JDFB48k_Init1 error\n");
+        loge("JDZH_H20S_Init1 error\n");
         goto err_exit;
     }
-    algo_init2 = JDFB48k_Init2();
+    algo_init2 = JDZH_H20S_Init2();
     if(algo_init2 == false){
-        loge("JDFB48k_Init2 error\n");
+        loge("JDZH_H20S_Init2 error\n");
         goto err_exit;
     }
-    algo_init3 = JDFB48k_Init3();
+    algo_init3 = JDZH_H20S_Init3();
     if(algo_init3 == false){
-        loge("JDFB48k_Init3 error\n");
+        loge("JDZH_H20S_Init3 error\n");
         goto err_exit;
     }
     logi("---- algo init success ----\n");
@@ -147,13 +147,13 @@ int main(int argc, char **argv)
 #if ENABLE_ALGO
 err_exit:
     if(algo_init1){
-        JDFB48k_Close1();
+        JDZH_H20S_Close1();
     }
     if(algo_init2){
-        JDFB48k_Close2();
+        JDZH_H20S_Close2();
     }
     if(algo_init3){
-        JDFB48k_Close3();
+        JDZH_H20S_Close3();
     }
 #endif
     logi("%s stop\n", process_name);

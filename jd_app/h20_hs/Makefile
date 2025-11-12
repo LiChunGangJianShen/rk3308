@@ -2,7 +2,7 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/libjdzh_feedbackdestroy-20250812.a
+ALGO_LIB = $(LIB_DIR)/
 RUN_ALGO_LIB_DIR = /oem
 
 USE_RK3308_CODEC = 1
@@ -15,7 +15,7 @@ endif
 
 CXXFLAGS = -fpermissive
 ifeq ($(USE_DYNAMIC_LIB), 1)
-LDFLAGS = -Wl,-rpath,$(RUN_ALGO_LIB_DIR) -lJD810_48K_2MIC -lasound -lpthread -ldl -lm -lstdc++ -L$(LIB_DIR)
+LDFLAGS = -Wl,-rpath,$(RUN_ALGO_LIB_DIR) -ljd_feedbackdestroy_h20s -lasound -lpthread -ldl -lm -lstdc++ -L$(LIB_DIR)
 else
 LDFLAGS = -lasound -lpthread -ldl -lm -lstdc++ $(ALGO_LIB) -L$(LIB_DIR)
 endif
@@ -38,9 +38,9 @@ $(TARGET): $(OBJ)
 	$(STRIP) $(TARGET)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
 ifeq ($(USE_DYNAMIC_LIB), 1)
-	cp -f $(LIB_DIR)/libJD810_48K_2MIC.so ../../device/rockchip/rk3308/oem_h20/
+	cp -f $(LIB_DIR)/libjd_feedbackdestroy_h20s.so ../../device/rockchip/rk3308/oem_h20/
 else
-	rm -f ../../device/rockchip/rk3308/oem_h20/libJD810_48K_2MIC.so
+	rm -f ../../device/rockchip/rk3308/oem_h20/libjd_feedbackdestroy_h20s.so
 endif
 	cp -f $(ETC_DIR)/asound.conf ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/

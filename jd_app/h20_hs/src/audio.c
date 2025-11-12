@@ -145,16 +145,16 @@ static int key_task(void *arg)
                 g_cur_fb_state = FB_OFF;
             }
             logi("bypass state: %s\n", g_cur_fb_state?"off":"on");
-            // JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
+            JDZH_H20S_FeedbackOnOff(g_cur_fb_state);
         }
 
         cur_mute = check_mute_state();
         if(cur_mute && !last_mute){
             if(!already_mute){
-                // JDZH_FeedbackDestroy_MuteOnOff(1);
+                JDZH_H20S_MuteOnOff(1);
             }
             else{
-                // JDZH_FeedbackDestroy_MuteOnOff(0);
+                JDZH_H20S_MuteOnOff(0);
             }
 
             already_mute = !already_mute;
@@ -301,7 +301,7 @@ static void algo_eq_init(void)
         for(i = 0; i < 16; i++){
             logi("last eq: %.2f\n", g_eq[i]);
         }
-        // JDZH_FeedbackDestroy_SetEQ(g_eq);
+        JDZH_H20S_SetEQ(g_eq);
         fclose(fp);
     }
     else{
@@ -315,7 +315,7 @@ static void algo_eq_init(void)
         for(i = 0; i < 16; i++){
             logi("initial eq: %.2f\n", g_eq[i]);
         }
-        // JDZH_FeedbackDestroy_SetEQ(g_eq);
+        JDZH_H20S_SetEQ(g_eq);
         fclose(fp);
     }
 }
@@ -422,7 +422,7 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
             g_eq[i] = (float)(data[i]*0.5-12);
             logi("eq para: %.2f db, data: 0x%x\n", g_eq[i], data[i]);
         }
-        // JDZH_FeedbackDestroy_SetEQ(g_eq);
+        JDZH_H20S_SetEQ(g_eq);
         save_eq(g_eq, sizeof(g_eq)/sizeof(g_eq[0]));
         length=16;
         memset(sbuf, 0, sizeof(sbuf));
@@ -564,7 +564,7 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
         sbuf[5] = 0x00ff & (sbuf[1]+sbuf[2]+sbuf[3]+sbuf[4]);
         sbuf[6] = 0xFE;
         write(fd, sbuf, 7);
-        // JDZH_FeedbackDestroy_PinkNoiseOnOff(g_noise_state, 1.0);
+        // 噪声以后不要了
     }
 }
 static int serial_task(void *arg)
@@ -902,7 +902,7 @@ static int alg_task(void *arg)
             memset(out_data1, 0, sizeof(out_data1));
             memset(out_data2, 0, sizeof(out_data2));
 #if ENABLE_ALGO
-            JDFB48k_Process1(mic_data1, mic_data2, out_data1, out_data2);
+            JDZH_H20S_Process1(mic_data1, mic_data2, out_data1, out_data2, NULL, NULL);
 #else
 			memcpy(out_data1, mic_data1, sizeof(out_data1));
 			memcpy(out_data2, mic_data2, sizeof(out_data2));
@@ -1020,7 +1020,7 @@ static int alg2_task(void *arg)
             }
             gettimeofday(&tva, NULL);
 #if ENABLE_ALGO
-            JDFB48k_Process2(mic_data1, mic_data2);
+            JDZH_H20S_Process2(mic_data1, mic_data2, NULL, NULL);
 #endif
             gettimeofday(&tvb, NULL);
 			gettimeofday(&tvc, NULL);
@@ -1107,7 +1107,7 @@ static int alg3_task(void *arg)
 
             gettimeofday(&tva, NULL);
 #if ENABLE_ALGO
-            JDFB48k_Process3(mic_data1, mic_data2);
+            JDZH_H20S_Process3(mic_data1, mic_data2, NULL, NULL);
 #endif
             gettimeofday(&tvb, NULL);
 			gettimeofday(&tvc, NULL);
