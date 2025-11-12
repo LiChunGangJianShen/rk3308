@@ -1,1 +1,0 @@
-rk3308/BoardConfig-JD-H20.mk
