@@ -59,14 +59,14 @@ static void sig_handler(int signo)
     
     size = backtrace(array, 20);
     strings = backtrace_symbols(array, size);
-    logw("Call Trace: size=%d\n", size);
+    logd("Call Trace: size=%d\n", size);
 
     if (strings) {
         for (i = 0; i < size; i++)
-            logw("  %s\n", strings[i]);
+            logd("  %s\n", strings[i]);
         free(strings);
     } else {
-        logw("Not Found\n\n");
+        logd("Not Found\n\n");
     }
 
     if(thread_running) {

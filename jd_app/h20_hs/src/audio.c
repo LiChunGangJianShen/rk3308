@@ -22,8 +22,8 @@
 #define ALG_COST_TIME   3
 
 //Asound Card Name
-#define CAPTURE_CARD_NAME  "default"
-#define PLAYBACK_CARD_NAME  "default"
+#define CAPTURE_CARD_NAME  "hw:h20aiao,0"//"default"   //default capture
+#define PLAYBACK_CARD_NAME  "hw:h20aiao,0"//"default"   //default playback
 //Channels
 #define CAPTURE_CHN   2
 #define PLAYBACK_CHN    2
@@ -85,7 +85,7 @@ static pthread_state_t serial_task_state;
 
 #define FB_ON       1
 #define FB_OFF      0
-static int g_cur_fb_state = 0;
+static int g_cur_fb_state = 1;
 static int g_noise_state = 0;
 // static const int g_level_eq[]={-12.0, -11.5, -11.0, -10.5, -};
 static float g_eq[16] = {0.0};
@@ -130,35 +130,39 @@ static int key_task(void *arg)
     logi("key task start\n");
 
     int cur_mute=0, last_mute=0, already_mute=0;
-    int cur_fb=0;
+    int cur_fb=0, last_fb=0;
     init_fb_gpio();
     init_mute_gpio();
 
     while(key_task_state.running){
         cur_fb = check_fb_state();
-        if(!cur_fb){
-            g_cur_fb_state = FB_ON;
+        if(cur_fb != last_fb){
+            last_fb = cur_fb;
+            if(!cur_fb){
+                g_cur_fb_state = FB_ON;
+            }
+            else{
+                g_cur_fb_state = FB_OFF;
+            }
+            logi("bypass state: %s\n", g_cur_fb_state?"off":"on");
+            // JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
         }
-        else{
-            g_cur_fb_state = FB_OFF;
-        }
-        // JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
 
         cur_mute = check_mute_state();
         if(cur_mute && !last_mute){
-            logi("%s", already_mute?"unmute":"mute");
-            if(already_mute){
-                already_mute = 0;
-                // JDZH_FeedbackDestroy_MuteOnOff(0);
-            }
-            else{
-                already_mute = 1;
+            if(!already_mute){
                 // JDZH_FeedbackDestroy_MuteOnOff(1);
             }
+            else{
+                // JDZH_FeedbackDestroy_MuteOnOff(0);
+            }
+
+            already_mute = !already_mute;
+            logi("mic state: %s\n", already_mute?"off":"on");
         }
         last_mute = cur_mute;
 
-        usleep(100);
+        usleep(10000);
     }
 
     destory_fb_gpio();
@@ -276,7 +280,6 @@ static int save_eq(float *eq, int len)
 static void algo_eq_init(void)
 {
     char buf[64] = {0};
-	int bytes_buf = sizeof(buf);
     FILE *fp = NULL;
     int i=0;
     if(access(EQ_FILE, F_OK) == 0){
@@ -285,7 +288,7 @@ static void algo_eq_init(void)
             loge("fopen %s fail\n", EQ_FILE);
             return;
         }
-        while(fgets(buf, bytes_buf, fp) != NULL){
+        while(fgets(buf, sizeof(buf), fp) != NULL){
             if(i < 16){
                 g_eq[i] = extract_float(buf);
                 i++;
@@ -319,7 +322,6 @@ static void algo_eq_init(void)
 static void check_eq(char eq_buf[], int len)
 {
     char buf[64] = {0};
-	int bytes_buf = sizeof(buf);
     FILE *fp = NULL;
     int i=0;
     if(access(EQ_FILE, F_OK) == 0){
@@ -328,7 +330,7 @@ static void check_eq(char eq_buf[], int len)
             loge("fopen %s fail", EQ_FILE);
             return;
         }
-        while(fgets(buf, bytes_buf, fp) != NULL){
+        while(fgets(buf, sizeof(buf), fp) != NULL){
             if(i < 16){
                 g_eq[i] = extract_float(buf);
                 i++;
@@ -577,7 +579,6 @@ static int serial_task(void *arg)
     struct timeval tv;
     int serial_fd = -1;
     char rbuf[256]={0};
-	int bytes_rbuf = sizeof(rbuf);
 
     serial_fd = serial_init(SERIAL_DEV, SERIAL_BAUD_RATE);
     max_fd = serial_fd;
@@ -596,7 +597,7 @@ static int serial_task(void *arg)
         ret = select(max_fd + 1, &rfds, NULL, NULL, &tv);
         if(ret > 0){
             if (FD_ISSET(serial_fd, &rfds)) {
-                ret = read(serial_fd, rbuf, bytes_rbuf);
+                ret = read(serial_fd, rbuf, sizeof(rbuf));
                 if(ret > 0){
                     for(int i = 0; i < ret; i++){
                         logi("ret=%d, recv: rbuf[%d]=0x%x\n", ret, i, 0xff & rbuf[i]);
@@ -657,13 +658,12 @@ static int capture_task(void *arg)
     alsa_api_para_t params_capture;
     audio_fmt_t capture_buff[PERIOD_SIZE][CAPTURE_CHN];
     snd_pcm_sframes_t avail_frames = 0;
-	int bytes_cap = sizeof(capture_buff);
 
-    memset(capture_buff, 0, bytes_cap);
+    memset(capture_buff, 0, sizeof(capture_buff));
 
-    for(int i = 0; i < alg_idx_max; i++){
-        sem_wait(&g_sem_alg_ready[i]);
-    }
+    // for(int i = 0; i < alg_idx_max; i++){
+    //     sem_wait(&g_sem_alg_ready[i]);
+    // }
 
     memset(&params_capture, 0, sizeof(params_capture));
     params_capture.block = SND_PCM_NONBLOCK;
@@ -685,16 +685,17 @@ static int capture_task(void *arg)
     while (capture_task_state.running)
     {
         if(ppcm_capture){
-            avail_frames = snd_pcm_avail_update(ppcm_capture);
+            avail_frames = snd_pcm_avail(ppcm_capture);
             if(avail_frames >= PERIOD_SIZE){
+                memset(capture_buff, 0, sizeof(capture_buff));
                 err = pcm_in(ppcm_capture, capture_buff, PERIOD_SIZE, "capture");
                 if(err > 0){
                     get_frames += err;
                     for(int i = 0; i < alg_idx_max; i++){
-                        if(rb_get_space_free(rngbuff_ai[i]) < bytes_cap){
-                            rb_discard(rngbuff_ai[i], bytes_cap);
+                        if(rb_get_space_free(rngbuff_ai[i]) < sizeof(capture_buff)){
+                            rb_discard(rngbuff_ai[i], sizeof(capture_buff));
                         }
-                        rb_write(rngbuff_ai[i], capture_buff, bytes_cap);
+                        rb_write(rngbuff_ai[i], capture_buff, sizeof(capture_buff));
                     }
                 }
             }
@@ -755,14 +756,12 @@ static int playback_task(void *arg)
     audio_fmt_t playback_buff[PERIOD_SIZE][PLAYBACK_CHN];
     audio_fmt_t tmpbuff[PERIOD_SIZE];
     snd_pcm_sframes_t avail_frames;
-	int bytes_tmpbuf = sizeof(tmpbuff);
 
-    for(int i = 0; i < alg_idx_max; i++){
-        sem_wait(&g_sem_alg_ready1[i]);
-    }
-    
+    // for(int i = 0; i < alg_idx_max; i++){
+    //     sem_wait(&g_sem_alg_ready1[i]);
+    // }
     memset(playback_buff, 0, sizeof(playback_buff));
-    memset(tmpbuff, 0, bytes_tmpbuf);
+    memset(tmpbuff, 0, sizeof(tmpbuff));
     memset(&params_playback, 0, sizeof(params_playback));
     params_playback.block = SND_PCM_NONBLOCK;
     params_playback.access = SND_PCM_ACCESS_RW_INTERLEAVED;
@@ -787,21 +786,21 @@ static int playback_task(void *arg)
 	generate_1khz_sine_wave(10, SAMPLE_RATE, sine_wave);
 #endif
 
-	while(rb_get_space_used(rngbuff_ao[0]) < bytes_tmpbuf){
+	while(rb_get_space_used(rngbuff_ao[0]) < sizeof(tmpbuff)){
         pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
         usleep(100);
     }
     
     while (playback_task_state.running)
     {
-        if(rb_get_space_used(rngbuff_ao[0]) < bytes_tmpbuf){
+        if(rb_get_space_used(rngbuff_ao[0]) < sizeof(tmpbuff)){
             usleep(100);
 			continue;
         }
 
         for(int i = 0; i < PLAYBACK_CHN; i++){
-            memset(tmpbuff, 0, bytes_tmpbuf);
-            rb_read(rngbuff_ao[i], tmpbuff, bytes_tmpbuf);
+            memset(tmpbuff, 0, sizeof(tmpbuff));
+            rb_read(rngbuff_ao[i], tmpbuff, sizeof(tmpbuff));
             for(int j = 0; j < PERIOD_SIZE; j++){
 			#if EN_USE_SINE_WAVE
 				playback_buff[j][i] = sine_wave[j];
@@ -868,19 +867,13 @@ static int alg_task(void *arg)
     audio_fmt_t mic_data2[ALG_FRAMES];
 	audio_fmt_t out_data1[ALG_FRAMES];
     audio_fmt_t out_data2[ALG_FRAMES];
-	int bytes_cap = sizeof(capture_buff);
-	int bytes_play = sizeof(playback_buff);
-	int bytes_mic1 = sizeof(mic_data1);
-	int bytes_mic2 = sizeof(mic_data2);
-	int bytes_out1 = sizeof(out_data1);
-	int bytes_out2 = sizeof(out_data2);
 
-    memset(capture_buff, 0, bytes_cap);
-    memset(playback_buff, 0, bytes_play);
-    memset(mic_data1, 0, bytes_mic1);
-    memset(mic_data2, 0, bytes_mic2);
-    memset(out_data1, 0, bytes_out1);
-    memset(out_data2, 0, bytes_out2);
+    memset(capture_buff, 0, sizeof(capture_buff));
+    memset(playback_buff, 0, sizeof(playback_buff));
+    memset(mic_data1, 0, sizeof(mic_data1));
+    memset(mic_data2, 0, sizeof(mic_data2));
+    memset(out_data1, 0, sizeof(out_data1));
+    memset(out_data2, 0, sizeof(out_data2));
 
     algo_eq_init();
 
@@ -890,29 +883,29 @@ static int alg_task(void *arg)
 	gettimeofday(&tvc, NULL);
 	gettimeofday(&tvl, NULL);
     while(alg_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) < bytes_cap){
+        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) < sizeof(capture_buff)){
             sem_wait(&g_sem_3a[alg_idx_1]);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) >= bytes_cap){
-            memset(capture_buff, 0, bytes_cap);
-            rb_read(rngbuff_ai[alg_idx_1], capture_buff, bytes_cap);
-            memset(mic_data1, 0, bytes_mic1);
-            memset(mic_data2, 0, bytes_mic2);
+        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) >= sizeof(capture_buff)){
+            memset(capture_buff, 0, sizeof(capture_buff));
+            rb_read(rngbuff_ai[alg_idx_1], capture_buff, sizeof(capture_buff));
+            memset(mic_data1, 0, sizeof(mic_data1));
+            memset(mic_data2, 0, sizeof(mic_data2));
             for(i = 0; i < ALG_FRAMES; i++){
                 mic_data1[i] = capture_buff[i][0];
                 mic_data2[i] = capture_buff[i][1];
             }
 
             gettimeofday(&tva, NULL);
-            memset(out_data1, 0, bytes_out1);
-            memset(out_data2, 0, bytes_out2);
+            memset(out_data1, 0, sizeof(out_data1));
+            memset(out_data2, 0, sizeof(out_data2));
 #if ENABLE_ALGO
             JDFB48k_Process1(mic_data1, mic_data2, out_data1, out_data2);
 #else
-			memcpy(out_data1, mic_data1, bytes_out1);
-			memcpy(out_data2, mic_data2, bytes_out2);
+			memcpy(out_data1, mic_data1, sizeof(out_data1));
+			memcpy(out_data2, mic_data2, sizeof(out_data2));
 #endif
             gettimeofday(&tvb, NULL);
 			gettimeofday(&tvc, NULL);
@@ -929,24 +922,24 @@ static int alg_task(void *arg)
 				}
 			}
 
-            if(rb_get_space_free(rngbuff_ao[0]) < bytes_out1){
-                rb_discard(rngbuff_ao[0], bytes_out1);
+            if(rb_get_space_free(rngbuff_ao[0]) < sizeof(out_data1)){
+                rb_discard(rngbuff_ao[0], sizeof(out_data1));
             }
-            rb_write(rngbuff_ao[0], out_data1, bytes_out1);
+            rb_write(rngbuff_ao[0], out_data1, sizeof(out_data1));
 #if TWO_OUT_DATA
-            if(rb_get_space_free(rngbuff_ao[1]) < bytes_out2){
-                rb_discard(rngbuff_ao[1], bytes_out2);
+            if(rb_get_space_free(rngbuff_ao[1]) < sizeof(out_data2)){
+                rb_discard(rngbuff_ao[1], sizeof(out_data2));
             }
-            rb_write(rngbuff_ao[1], out_data2, bytes_out2);
+            rb_write(rngbuff_ao[1], out_data2, sizeof(out_data2));
 #else
-            if(rb_get_space_free(rngbuff_ao[1]) < bytes_out1){
-                rb_discard(rngbuff_ao[1], bytes_out1);
+            if(rb_get_space_free(rngbuff_ao[1]) < sizeof(out_data1)){
+                rb_discard(rngbuff_ao[1], sizeof(out_data1));
             }
-            rb_write(rngbuff_ao[1], out_data1, bytes_out1);
+            rb_write(rngbuff_ao[1], out_data1, sizeof(out_data1));
 #endif
 
             if(atomic_load(&g_record_action) == algo_record_cmd_start){
-                rb_write(rngbuff_rec, capture_buff, bytes_cap);
+                rb_write(rngbuff_rec, capture_buff, sizeof(capture_buff));
                 for(i = 0; i < ALG_FRAMES; i++){
                     playback_buff[i][0] = out_data1[i];
 #if TWO_OUT_DATA
@@ -955,7 +948,7 @@ static int alg_task(void *arg)
                     playback_buff[i][1] = out_data1[i];
 #endif
                 }
-                rb_write(rngbuff_rec_dataout, playback_buff, bytes_play);
+                rb_write(rngbuff_rec_dataout, playback_buff, sizeof(playback_buff));
             }
         }
 
@@ -1000,13 +993,10 @@ static int alg2_task(void *arg)
     audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN];
     audio_fmt_t mic_data1[ALG_FRAMES];
     audio_fmt_t mic_data2[ALG_FRAMES];
-	int bytes_cap = sizeof(capture_buff);
-	int bytes_mic1 = sizeof(mic_data1);
-	int bytes_mic2 = sizeof(mic_data2);
 
-    memset(capture_buff, 0, bytes_cap);
-    memset(mic_data1, 0, bytes_mic1);
-    memset(mic_data2, 0, bytes_mic2);
+    memset(capture_buff, 0, sizeof(capture_buff));
+    memset(mic_data1, 0, sizeof(mic_data1));
+    memset(mic_data2, 0, sizeof(mic_data2));
 
     sem_post(&g_sem_alg_ready[alg_idx_2]);
     sem_post(&g_sem_alg_ready1[alg_idx_2]); 
@@ -1014,16 +1004,16 @@ static int alg2_task(void *arg)
 	gettimeofday(&tvc, NULL);
 	gettimeofday(&tvl, NULL);
     while(alg2_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) < bytes_cap){
+        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) < sizeof(capture_buff)){
             sem_wait(&g_sem_3a[alg_idx_2]);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) >= bytes_cap){
-            memset(capture_buff, 0, bytes_cap);
-            rb_read(rngbuff_ai[alg_idx_2], capture_buff, bytes_cap);
-            memset(mic_data1, 0, bytes_mic1);
-            memset(mic_data2, 0, bytes_mic2);
+        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) >= sizeof(capture_buff)){
+            memset(capture_buff, 0, sizeof(capture_buff));
+            rb_read(rngbuff_ai[alg_idx_2], capture_buff, sizeof(capture_buff));
+            memset(mic_data1, 0, sizeof(mic_data1));
+            memset(mic_data2, 0, sizeof(mic_data2));
             for(i = 0; i < ALG_FRAMES; i++){
                 mic_data1[i] = capture_buff[i][0];
                 mic_data2[i] = capture_buff[i][1];
@@ -1089,13 +1079,10 @@ static int alg3_task(void *arg)
     audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN];
     audio_fmt_t mic_data1[ALG_FRAMES];
     audio_fmt_t mic_data2[ALG_FRAMES];
-	int bytes_cap = sizeof(capture_buff);
-	int bytes_mic1 = sizeof(mic_data1);
-	int bytes_mic2 = sizeof(mic_data2);
 
-    memset(capture_buff, 0, bytes_cap);
-    memset(mic_data1, 0, bytes_mic1);
-    memset(mic_data2, 0, bytes_mic2);
+    memset(capture_buff, 0, sizeof(capture_buff));
+    memset(mic_data1, 0, sizeof(mic_data1));
+    memset(mic_data2, 0, sizeof(mic_data2));
 
     sem_post(&g_sem_alg_ready[alg_idx_3]); 
     sem_post(&g_sem_alg_ready1[alg_idx_3]);
@@ -1103,16 +1090,16 @@ static int alg3_task(void *arg)
 	gettimeofday(&tvc, NULL);
 	gettimeofday(&tvl, NULL);
     while(alg2_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) < bytes_cap){
+        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) < sizeof(capture_buff)){
             sem_wait(&g_sem_3a[alg_idx_3]);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) >= bytes_cap){
-            memset(capture_buff, 0, bytes_cap);
-            rb_read(rngbuff_ai[alg_idx_3], capture_buff, bytes_cap);
-            memset(mic_data1, 0, bytes_mic1);
-            memset(mic_data2, 0, bytes_mic2);
+        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) >= sizeof(capture_buff)){
+            memset(capture_buff, 0, sizeof(capture_buff));
+            rb_read(rngbuff_ai[alg_idx_3], capture_buff, sizeof(capture_buff));
+            memset(mic_data1, 0, sizeof(mic_data1));
+            memset(mic_data2, 0, sizeof(mic_data2));
             for(i = 0; i < ALG_FRAMES; i++){
                 mic_data1[i] = capture_buff[i][0];
                 mic_data2[i] = capture_buff[i][1];
@@ -1226,9 +1213,6 @@ static int rec_task(void *arg)
     struct sockaddr_in client_addr;
     unsigned long cur_time, rec_time;
     static unsigned long start_record_time = 0;
-	int bytes_in = sizeof(wrbuff);
-	int bytes_out = sizeof(wrdataoutbuff);
-	int bytes_recv = sizeof(buf);
 
     recv_udp = udp_server_init(UDP_SERVER_PORT);
     if(!recv_udp){
@@ -1239,9 +1223,9 @@ static int rec_task(void *arg)
     memset(&client_addr, 0, sizeof(struct sockaddr_in));
 
     while(rec_task_state.running){
-        ret = udp_server_recv(recv_udp, &client_addr, buf, bytes_recv, poll_ms);
+        ret = udp_server_recv(recv_udp, &client_addr, buf, sizeof(buf), poll_ms);
         if(ret > 0){
-            buf[bytes_recv - 1] = '\0';
+            buf[sizeof(buf) - 1] = '\0';
             logd("recv cmmd: %s\n", buf);
             if (strstr(buf, RECORD_CMD_START)) {
                 start_record_time = get_sys_ms();
@@ -1250,11 +1234,11 @@ static int rec_task(void *arg)
                 rb_cleanup(rngbuff_rec);
                 rb_cleanup(rngbuff_rec_dataout);
                 atomic_store(&g_record_action, algo_record_cmd_start);
-                udp_server_send(recv_udp, &client_addr, buf, bytes_recv);
+                udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                 logd("send cmd: %s, ret:%d\n", buf, ret);
             } else if (strstr(buf, RECORD_CMD_STOP)) {
                 atomic_store(&g_record_action, algo_record_cmd_stop);
-                ret = udp_server_send(recv_udp, &client_addr, buf, bytes_recv);
+                ret = udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                 logd("send cmd: %s, ret:%d\n", buf, ret);
             } else if (strstr(buf, RECORD_CMD_STATUS)) {
                 if(atomic_load(&g_record_action) == algo_record_cmd_start)  {
@@ -1262,13 +1246,13 @@ static int rec_task(void *arg)
                     rec_time = (cur_time - start_record_time)/1000;
                     logd("rest_time=%ld s\n", rec_time);
                     if(rec_time < MAX_REC_TIME){
-                        snprintf(buf, bytes_recv, "%s=%s %lds", RECORD_CMD_STATUS, "going", rec_time+1);
-                        udp_server_send(recv_udp, &client_addr, buf, bytes_recv);
+                        snprintf(buf, sizeof(buf), "%s=%s %lds", RECORD_CMD_STATUS, "going", rec_time+1);
+                        udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("send cmd: %s, ret:%d\n", buf, ret);
                     }
                     else if(rec_time == MAX_REC_TIME){
-                        snprintf(buf, bytes_recv, "%s=%s", RECORD_CMD_STATUS, "end_of_record");
-                        udp_server_send(recv_udp, &client_addr, buf, bytes_recv);
+                        snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "end_of_record");
+                        udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("to end of recording\n");
                     }
                 }
@@ -1276,20 +1260,18 @@ static int rec_task(void *arg)
         }
 
         if(atomic_load(&g_record_action) == algo_record_cmd_start){
-            if(rb_get_space_used(rngbuff_rec) >= bytes_in){
-				memset(wrbuff, 0, bytes_in);
-                rb_read(rngbuff_rec, wrbuff, bytes_in);
+            if(rb_get_space_used(rngbuff_rec) >= sizeof(wrbuff)){
+                rb_read(rngbuff_rec, wrbuff, sizeof(wrbuff));
                 if(p_file_rec){
-                    wcnt = fwrite(wrbuff, 1, bytes_in, p_file_rec);
+                    wcnt = fwrite(wrbuff, 1, sizeof(wrbuff), p_file_rec);
                     total_size += wcnt;
                     logd("record data total_size=%ld\n", total_size);
                 }
             }
-            if(rb_get_space_used(rngbuff_rec_dataout) >= bytes_out){
-				memset(wrdataoutbuff, 0, bytes_out);
-                rb_read(rngbuff_rec_dataout, wrdataoutbuff, bytes_out);
+            if(rb_get_space_used(rngbuff_rec_dataout) >= sizeof(wrdataoutbuff)){
+                rb_read(rngbuff_rec_dataout, wrdataoutbuff, sizeof(wrdataoutbuff));
                 if(p_file_rec_dataout){
-                    wcnt = fwrite(wrdataoutbuff, 1, bytes_out, p_file_rec_dataout);
+                    wcnt = fwrite(wrdataoutbuff, 1, sizeof(wrdataoutbuff), p_file_rec_dataout);
                     total_size_dataout += wcnt;
                     logd("record dataout total_size=%ld\n", total_size_dataout);
                 }
@@ -1299,17 +1281,17 @@ static int rec_task(void *arg)
 		if(atomic_load(&g_record_action) == algo_record_cmd_stop){
 			#if 0
             if(rb_get_space_used(rngbuff_rec) > 0){
-				memset(wrbuff, 0, bytes_in);
-                rb_read(rngbuff_rec, wrbuff, bytes_in);
+				memset(wrbuff, 0, sizeof(wrbuff));
+                rb_read(rngbuff_rec, wrbuff, sizeof(wrbuff));
                 if(p_file_rec){
-                    wcnt = fwrite(wrbuff, 1, bytes_in, p_file_rec);
+                    wcnt = fwrite(wrbuff, 1, sizeof(wrbuff), p_file_rec);
                     total_size += wcnt;
                     logd("record datain total_size=%ld\n", total_size);
                 }
             }
             if(rb_get_space_used(rngbuff_rec_dataout) > 0){
-				memset(wrdataoutbuff, 0, bytes_out);
-                rb_read(rngbuff_rec_dataout, wrdataoutbuff, bytes_out);
+				memset(wrdataoutbuff, 0, sizeof(wrdataoutbuff));
+                rb_read(rngbuff_rec_dataout, wrdataoutbuff, sizeof(wrdataoutbuff));
                 if(p_file_rec_dataout){
                     wcnt = fwrite(wrdataoutbuff, 1, bytes_out, p_file_rec_dataout);
                     total_size_dataout += wcnt;
@@ -1319,8 +1301,8 @@ static int rec_task(void *arg)
             #endif
             atomic_store(&g_record_action, algo_record_cmd_none);
             logd("record complete, g_record_action=%d\n", atomic_load(&g_record_action));
-            snprintf(buf, bytes_recv, "%s=%s", RECORD_CMD_STATUS, "finish");
-            udp_server_send(recv_udp, &client_addr, buf, bytes_recv);
+            snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "finish");
+            udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
             logd("send cmd: %s, ret:%d\n", buf, ret);
             rec_stop();
         }
@@ -1376,15 +1358,14 @@ void _sem_destroy(void)
 
 void init_rngbuff(void)
 {
-	int bytes_fmt = sizeof(audio_fmt_t);
     for(int i = 0; i < alg_idx_max; i++){
-        rngbuff_ai[i] = rb_create(bytes_fmt*AI_RNGBUFF_SIZE*CAPTURE_CHN);
+        rngbuff_ai[i] = rb_create(sizeof(audio_fmt_t)*AI_RNGBUFF_SIZE*CAPTURE_CHN);
     }
     for(int i = 0; i < PLAYBACK_CHN; i++){
-        rngbuff_ao[i] = rb_create(bytes_fmt*AO_RNGBUFF_SIZE*PLAYBACK_CHN);
+        rngbuff_ao[i] = rb_create(sizeof(audio_fmt_t)*AO_RNGBUFF_SIZE*PLAYBACK_CHN);
     }
-    rngbuff_rec = rb_create(bytes_fmt*REC_RNGBUFF_SIZE*CAPTURE_CHN);
-    rngbuff_rec_dataout = rb_create(bytes_fmt*REC_RNGBUFF_SIZE*PLAYBACK_CHN);
+    rngbuff_rec = rb_create(sizeof(audio_fmt_t)*REC_RNGBUFF_SIZE*CAPTURE_CHN);
+    rngbuff_rec_dataout = rb_create(sizeof(audio_fmt_t)*REC_RNGBUFF_SIZE*PLAYBACK_CHN);
 }
 
 void exit_rngbuff(void)

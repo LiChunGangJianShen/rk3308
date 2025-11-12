@@ -10,7 +10,6 @@ extern "C" {
 #define EN_REC_WAV_FILE	0
 #define EN_USE_SINE_WAVE 0
 
-#define EN_HID_TEST 0
 
 int capture_task_init(int cpu, int priority);
 void capture_task_exit(void);

@@ -29,7 +29,6 @@
 #include "build_time.h"
 #include "app_version.h"
 #include "rkgpio.h"
-#include "hid.h"
 
 #define CPU_0   (0)
 #define CPU_1   (1)
@@ -82,20 +81,11 @@ int main(int argc, char **argv)
     char process_name[32] = {0};
     char info[256];
 
-    int verbose = 0;
-	if(argc == 2 && !strcmp(argv[1], "verbose")) {
-       verbose = 1;
-    }
     get_executable_path(path, process_name, PATH_MAX);
-    // log_init(CPU_0, 1, "/tmp/log/", "/data/err_log/", process_name);
-    log_init(CPU_0, 1, "/tmp/log/", NULL, process_name);
-    if(verbose) {
-        log_set_level(LOG_VERB);
-    }
     logi("%s start\n", process_name);
     signal_hanler_init(process_name, &thread_running);
     snprintf(info, sizeof(info), "\n\nAPP: %s\nbuild: %s\napp:   %s\nalgo:  %s\n\n", process_name, BUILD_TIME, APP_VERSION, JDFB48k_GetVersion());
-    logd("%s", info);
+    logi("%s", info);
     write_file_str("/tmp/version", info);
 #if ENABLE_ALGO
     bool algo_init1 = false;
@@ -132,9 +122,6 @@ int main(int argc, char **argv)
     playback_task_init(CPU_0, 70);
     key_task_init(CPU_0, 69);
     serial_task_init(CPU_0, 69);
-#if EN_HID_TEST
-    hid_task_init(CPU_0, 69);
-#endif
 
     int state = 0;
     init_led_run();
@@ -153,9 +140,6 @@ int main(int argc, char **argv)
     rec_task_exit();
     capture_task_exit();
     playback_task_exit();
-#if EN_HID_TEST
-    hid_task_destroy();
-#endif
 
     _sem_destroy();
     exit_rngbuff();
@@ -173,8 +157,6 @@ err_exit:
     }
 #endif
     logi("%s stop\n", process_name);
-    log_close_err();
-    log_deinit();
     signal_hanler_exit();
 
     return 0;

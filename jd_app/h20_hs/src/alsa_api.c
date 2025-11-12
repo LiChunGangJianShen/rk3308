@@ -140,7 +140,7 @@ int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
     while(expect){
         err = snd_pcm_readi(ppcm, buf, expect);
         if(err < 0){
-            logw("pcm(%s) in xrun(%s)\n", card_name, snd_strerror(err));
+            // logw("pcm(%s) in xrun(%s)\n", card_name, snd_strerror(err));
             err = xrun_recovery(ppcm, err);
         }
         else{
@@ -159,7 +159,7 @@ int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
     while(expect){
         err = snd_pcm_writei(ppcm, buf, expect);
         if(err < 0){
-            logw("pcm(%s) out xrun(%s)\n", card_name, snd_strerror(err));
+            // logw("pcm(%s) out xrun(%s)\n", card_name, snd_strerror(err));
             err = xrun_recovery(ppcm, err);
         }
         else{

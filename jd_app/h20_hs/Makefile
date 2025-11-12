@@ -37,7 +37,11 @@ $(TARGET): $(OBJ)
 	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 	$(STRIP) $(TARGET)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
+ifeq ($(USE_DYNAMIC_LIB), 1)
 	cp -f $(LIB_DIR)/libJD810_48K_2MIC.so ../../device/rockchip/rk3308/oem_h20/
+else
+	rm -f ../../device/rockchip/rk3308/oem_h20/libJD810_48K_2MIC.so
+endif
 	cp -f $(ETC_DIR)/asound.conf ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
 	cp -f $(ETC_DIR)/S41sysinit ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/

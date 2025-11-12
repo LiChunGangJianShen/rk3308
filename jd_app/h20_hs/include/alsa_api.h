@@ -20,7 +20,6 @@ typedef struct alsa_api_para{
 }alsa_api_para_t;
 
 typedef short audio_fmt_t;
-// typedef int audio_fmt_t;
 
 int init_pcm(snd_pcm_t **ppcm, alsa_api_para_t alsa_params);
 void exit_pcm(snd_pcm_t *ppcm);
