@@ -43,8 +43,18 @@ static int hid_open(const char *dev)
 static bool is_fd_valid(int fd)
 {
     int err = fcntl(fd, F_GETFL);
-    if(err == -1 || errno == EBADF)
+	/*if(errno == EBADF)
+	{
+		DEBUG_PRINT("ERR : errno == EBADF\n");
+	}
+	if(err == -1)
+	{
+		DEBUG_PRINT("ERR : err == -1\n");
+	}*/
+    if(err == -1)// || errno == EBADF)
+	{
         return false;
+	}
 
     return true;
 }
@@ -68,7 +78,10 @@ static void hid_destroy(int fd)
 static int hid_report_send(int fd, void *data, int data_len)
 {
     if(!is_fd_valid(fd))
+	{
+		DEBUG_PRINT("ERR : is_fd_invalid \n");
         return -1;
+	}
     int err = 0;
     err = write(fd, data, data_len);
     if(err != data_len){
@@ -129,7 +142,9 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             }
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            DEBUG_PRINT("write %d bytes, (%s)\n", rc, 
+                (report->cmmd == cmmd_already_auth)?"already auth":"to do auth");
         }
         break;
     case cmmd_do_auth:
@@ -152,7 +167,9 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             report->data_size = 0;
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            DEBUG_PRINT("write %d bytes, (%s)\n", rc, 
+                (report->cmmd == cmmd_success_auth)?"success auth":"fail auth");
         }
         break;
     case cmmd_request_devinfo:
@@ -165,7 +182,8 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             report->data_size = strlen((char *)report->data) + 1;
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+            DEBUG_PRINT("write %d bytes, (%s)\n", rc, "request devinfo");
         }
         break;
     default:

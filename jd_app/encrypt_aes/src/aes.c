@@ -85,6 +85,9 @@ static void key_expansion(uint8_t* round_key, const uint8_t* Key) {
 }
 
 void aes256_init_ctx(AES256_ctx* ctx) {
+	
+	memset(ctx->round_key, 0, sizeof(ctx->round_key));
+	
     key_expansion(ctx->round_key, aes_key);
 }
 
@@ -200,9 +203,12 @@ static void inv_mix_columns(uint8_t* state) {
     }
 }
 
-static void add_round_key(uint8_t round, uint8_t* state, const uint8_t* round_key) {
+static void add_round_key(uint8_t round, uint8_t* state, const uint8_t* round_key) 
+{
     for (uint8_t i = 0; i < 16; ++i)
+	{
         state[i] ^= round_key[(round * 16) + i];
+	}
 }
 
 void aes256_ecb_encrypt(const AES256_ctx* ctx, uint8_t* buf) {
