@@ -4,7 +4,7 @@ LIB_DIR = lib
 ETC_DIR = etc
 ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-20251112-2.2.15.a
 RUN_ALGO_LIB_DIR = /oem
-USE_DYNAMIC_LIB	= 0
+USE_DYNAMIC_LIB	= 1
 
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
 CXXFLAGS = -fpermissive
@@ -32,9 +32,10 @@ $(TARGET): $(OBJ)
 	$(STRIP) $(TARGET)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
 ifeq ($(USE_DYNAMIC_LIB), 1)
+	rm -f ../../device/rockchip/rk3308/oem_h20/*.so
 	cp -f $(LIB_DIR)/libjd_feedbackdestroy.so ../../device/rockchip/rk3308/oem_h20/
 else
-	rm -f ../../device/rockchip/rk3308/oem_h20/libjd_feedbackdestroy.so
+	rm -f ../../device/rockchip/rk3308/oem_h20/*.so
 endif
 	cp -f $(ETC_DIR)/asound.conf ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/

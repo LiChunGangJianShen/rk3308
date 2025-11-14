@@ -7,6 +7,7 @@ extern "C" {
 
 #define ENABLE_ALGO 1
 #define TWO_OUT_DATA    0
+#define EN_REC_WAV_FILE	0
 
 int capture_task_init(int cpu, int priority);
 void capture_task_exit(void);

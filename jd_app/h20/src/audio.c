@@ -1140,29 +1140,43 @@ void alg3_task_exit(void)
 static void rec_start(void)
 {
 	char path[256] = {0};
-
+#if EN_REC_WAV_FILE
     snprintf(path, sizeof(path), "/data/algo_in.wav");
+#else
+	snprintf(path, sizeof(path), "/data/algo_in.pcm");
+#endif
     if(!p_file_rec) {
         p_file_rec = fopen(path, "w");
+#if EN_REC_WAV_FILE
         wav_start_write(p_file_rec, &st_wavhead, 16, CAPTURE_CHN, SAMPLE_RATE);
+#endif
     }
-
+#if EN_REC_WAV_FILE
     snprintf(path, sizeof(path), "/data/algo_out.wav");
+#else
+	snprintf(path, sizeof(path), "/data/algo_out.pcm");
+#endif
     if(!p_file_rec_dataout) {
         p_file_rec_dataout = fopen(path, "w");
+#if EN_REC_WAV_FILE
         wav_start_write(p_file_rec_dataout, &st_wavhead_dataout, 16, PLAYBACK_CHN, SAMPLE_RATE);
+#endif
     }
 }
 
 static void rec_stop(void)
 {
     if(p_file_rec){
+#if EN_REC_WAV_FILE
         wav_stop_write(p_file_rec, &st_wavhead, total_size);
+#endif
         fclose(p_file_rec);
         p_file_rec = NULL;
     }
     if(p_file_rec_dataout){
-        wav_stop_write(p_file_rec_dataout, &st_wavhead_dataout, total_size_dataout);
+#if EN_REC_WAV_FILE
+		wav_stop_write(p_file_rec_dataout, &st_wavhead_dataout, total_size_dataout);
+#endif
         fclose(p_file_rec_dataout);
         p_file_rec_dataout = NULL;
     }
@@ -1179,9 +1193,8 @@ static int rec_task(void *arg)
     udp_server* recv_udp = NULL;
     char buf[1024] = {0};
     struct sockaddr_in client_addr;
-    unsigned long cur_time, rest_time;
+    unsigned long cur_time, rec_time;
     static unsigned long start_record_time = 0;
-    static unsigned long expect_time = 0;
 
     recv_udp = udp_server_init(UDP_SERVER_PORT);
     if(!recv_udp){
@@ -1212,28 +1225,19 @@ static int rec_task(void *arg)
             } else if (strstr(buf, RECORD_CMD_STATUS)) {
                 if(atomic_load(&g_record_action) == algo_record_cmd_start)  {
                     cur_time = get_sys_ms();
-                    rest_time = expect_time - (cur_time - start_record_time)/1000;
-                    logd("rest_time=%ld s\n", rest_time);
-                    if(rest_time > 0){
-                        snprintf(buf, sizeof(buf), "%s=%s %lds", RECORD_CMD_STATUS, "going", rest_time);
+                    rec_time = (cur_time - start_record_time)/1000;
+                    logd("rest_time=%ld s\n", rec_time);
+                    if(rec_time < MAX_REC_TIME){
+                        snprintf(buf, sizeof(buf), "%s=%s %lds", RECORD_CMD_STATUS, "going", rec_time+1);
                         udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("send cmd: %s, ret:%d\n", buf, ret);
                     }
-                    else if(rest_time <= 0){
+                    else if(rec_time == MAX_REC_TIME){
                         snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "end_of_record");
                         udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("to end of recording\n");
                     }
                 }
-            } else if (strstr(buf, "sec-")) {
-                int i = 0;
-                while(buf[i] != '-')
-                    i++;
-                i++;
-                expect_time = atoi(buf+i);
-                if(expect_time > MAX_REC_TIME)
-                    expect_time = MAX_REC_TIME;
-                logd("expect_time:%ld s\n", expect_time);
             }
         }
 
@@ -1255,8 +1259,11 @@ static int rec_task(void *arg)
                 }
             }
         }
-        else if(atomic_load(&g_record_action) == algo_record_cmd_stop){
-            if(rb_get_space_used(rngbuff_rec) >= sizeof(wrbuff)){
+
+		if(atomic_load(&g_record_action) == algo_record_cmd_stop){
+			#if 0
+            if(rb_get_space_used(rngbuff_rec) > 0){
+				memset(wrbuff, 0, sizeof(wrbuff));
                 rb_read(rngbuff_rec, wrbuff, sizeof(wrbuff));
                 if(p_file_rec){
                     wcnt = fwrite(wrbuff, 1, sizeof(wrbuff), p_file_rec);
@@ -1264,15 +1271,16 @@ static int rec_task(void *arg)
                     logd("record datain total_size=%ld\n", total_size);
                 }
             }
-            if(rb_get_space_used(rngbuff_rec_dataout) >= sizeof(wrdataoutbuff)){
+            if(rb_get_space_used(rngbuff_rec_dataout) > 0){
+				memset(wrdataoutbuff, 0, sizeof(wrdataoutbuff));
                 rb_read(rngbuff_rec_dataout, wrdataoutbuff, sizeof(wrdataoutbuff));
                 if(p_file_rec_dataout){
-                    wcnt = fwrite(wrdataoutbuff, 1, sizeof(wrdataoutbuff), p_file_rec_dataout);
+                    wcnt = fwrite(wrdataoutbuff, 1, bytes_out, p_file_rec_dataout);
                     total_size_dataout += wcnt;
                     logd("record dataout total_size=%ld\n", total_size_dataout);
                 }
             }
-            
+            #endif
             atomic_store(&g_record_action, algo_record_cmd_none);
             logd("record complete, g_record_action=%d\n", atomic_load(&g_record_action));
             snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "finish");
