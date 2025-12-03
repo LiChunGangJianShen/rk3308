@@ -32,6 +32,14 @@
 	#sound-dai-cells = <0>;
 };
 
+&dummy_codec{
+	status = "okay";
+    compatible = "rockchip,dummy-codec";
+    #sound-dai-cells = <0>;
+    clocks = <&cru SCLK_I2S0_2CH_OUT>;
+    clock-names = "mclk";
+};
+
 &acodec {
 	status = "disable";
 	rockchip,micbias1;
