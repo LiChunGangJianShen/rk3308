@@ -10,10 +10,30 @@
 / {
 	model = "Rockchip RK3308 evb digital-pdm mic v13 board";
 	compatible = "rockchip,rk3308-evb-dmic-pdm-v13", "rockchip,rk3308";
+	
+	h20s_sound: h20s-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "h20aiao";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_2ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+ 	};
+};
+
+&i2s_2ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
 };
 
 &acodec {
-	status = "okay";
+	status = "disable";
 	rockchip,micbias1;
 	rockchip,micbias2;
 	rockchip,no-deep-low-power;
@@ -22,11 +42,11 @@
 };
 
 &i2s_8ch_2 {
-	status = "okay";
+	status = "disable";
 };
 
 &acodec_sound {
-	status = "okay";
+	status = "disable";
 };
 
 &sfc {

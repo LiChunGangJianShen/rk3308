@@ -38,10 +38,10 @@ $(TARGET): $(OBJ)
 	$(STRIP) $(TARGET)
 	cp -f $(TARGET) ../../buildroot/board/rockchip/rk3308/fs-overlay/usr/bin/
 ifeq ($(USE_DYNAMIC_LIB), 1)
-	rm -f ../../device/rockchip/rk3308/oem_h20/.so
+	rm -f ../../device/rockchip/rk3308/oem_h20/*.so
 	cp -f $(LIB_DIR)/libjd_feedbackdestroy_h20s.so ../../device/rockchip/rk3308/oem_h20/
 else
-	rm -f ../../device/rockchip/rk3308/oem_h20/.so
+	rm -f ../../device/rockchip/rk3308/oem_h20/*.so
 endif
 	cp -f $(ETC_DIR)/asound.conf ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/
 	cp -f $(ETC_DIR)/.usb_config ../../buildroot/board/rockchip/rk3308/fs-overlay/etc/init.d/
