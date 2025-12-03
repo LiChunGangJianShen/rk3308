@@ -31,7 +31,7 @@ case "$1" in
 		#irqno=`cat /proc/interrupts | grep ff400000.usb | awk '{print $1}' | awk -F: '{print $1}'`
 		#echo 8 > /proc/irq/$irqno/smp_affinity
 		
-		linein_setup
+		# linein_setup
 		# run_led_init
 		# vrm
 		;;

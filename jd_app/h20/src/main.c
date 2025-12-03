@@ -75,6 +75,19 @@ static void led_run_state(int state)
         rk_set_gpio_value(0, 'C', 4, 0);
 }
 
+static void init_ad_reset(void)
+{
+    rk_set_gpio_export(0, 'A', 3);
+    rk_set_gpio_direction_out(0, 'A', 3);
+    rk_set_gpio_value(0, 'A', 3, 1);
+}
+
+static void exit_ad_reset(void)
+{
+    rk_set_gpio_value(0, 'A', 3, 0);
+    rk_set_gpio_unexport(0, 'A', 3);
+}
+
 int main(int argc, char **argv)
 {
     char path[PATH_MAX] = {0};
@@ -120,14 +133,22 @@ int main(int argc, char **argv)
     key_task_init(CPU_0, 69);
     serial_task_init(CPU_0, 69);
 
+    int ad_reset = 0;
     int state = 0;
     init_led_run();
     while(thread_running){
 		state = !state;
         led_run_state(state);
         sleep(1);
+        if(!ad_reset){
+            init_ad_reset();
+            ad_reset = 1;
+        }
     }
 
+    if(ad_reset){
+        exit_ad_reset();
+    }
 	exit_led_run();
     key_task_exit();
     serial_task_exit();
