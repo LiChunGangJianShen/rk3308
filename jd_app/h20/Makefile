@@ -2,7 +2,7 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-20251127-3.3.5.a
+ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-6.6.4.a
 RUN_ALGO_LIB_DIR = /oem
 USE_DYNAMIC_LIB	= 0
 
@@ -15,7 +15,7 @@ LDFLAGS = -lasound -lpthread -ldl -lm -lstdc++ $(ALGO_LIB) -L$(LIB_DIR)
 endif
 TARGET = jdapp
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
-APP_VERSION := V1.11
+APP_VERSION := V1.12
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))

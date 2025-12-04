@@ -559,7 +559,7 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
         sbuf[5] = 0x00ff & (sbuf[1]+sbuf[2]+sbuf[3]+sbuf[4]);
         sbuf[6] = 0xFE;
         write(fd, sbuf, 7);
-        JDZH_FeedbackDestroy_PinkNoiseOnOff(g_noise_state, 1.0);
+        // JDZH_FeedbackDestroy_PinkNoiseOnOff(g_noise_state, 1.0);
     }
 }
 static int serial_task(void *arg)
