@@ -15,7 +15,7 @@ LDFLAGS = -lasound -lpthread -ldl -lm -lstdc++ $(ALGO_LIB) -L$(LIB_DIR)
 endif
 TARGET = jdapp
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
-APP_VERSION := V1.9
+APP_VERSION := V1.11
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))

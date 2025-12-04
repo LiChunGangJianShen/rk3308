@@ -675,7 +675,29 @@ static int capture_task(void *arg)
         goto err_to_exit;
     }
 
-    snd_pcm_start(ppcm_capture);
+    int cnt = 0;
+    snd_pcm_state_t pcm_state;
+    int start_err = snd_pcm_start(ppcm_capture);
+    if(start_err < 0){
+        loge("first snd_pcm_start failed\n");
+    }
+    while(cnt < 20){
+        pcm_state = snd_pcm_state(ppcm_capture);
+        if(pcm_state == SND_PCM_STATE_RUNNING){
+            logi("pcm state: %s\n", snd_pcm_state_name(pcm_state));
+            break;
+        }
+
+        if(start_err < 0){
+            start_err = snd_pcm_start(ppcm_capture);
+            if(start_err >= 0){
+                logi("restry snd_pcm_start success\n");
+            }
+        }
+
+        cnt++;
+        usleep(100000);
+    }
 
     while (capture_task_state.running)
     {
