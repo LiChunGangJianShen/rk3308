@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308hs-m800.dtsi"
+
+/ {
+	model = "Rockchip RK3308 evb digital-pdm mic v13 board";
+	compatible = "rockchip,rk3308-evb-dmic-pdm-v13", "rockchip,rk3308";
+	
+	es7210_sound: es7210-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,es7210";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_8ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&es7210>;
+		};
+ 	};
+	
+	ti3104_sound: ti3104-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,ti3104";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_2ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&ti3104>;
+		};
+ 	};
+};
+
+&i2s_2ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	rockchip,clk-trcm = <0x01>;
+};
+
+&i2c2 {
+	status = "okay";
+	ti3104: ti3104@18 {
+		#sound-dai-cells = <0x00>;
+		reg = <0x18>;
+		compatible = "ti,tlv320aic3x";
+		clocks = <&cru SCLK_I2S0_2CH_OUT>;
+		clock-names = "mclk";
+		gpio-reset = <&gpio0 RK_PA3 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&i2s_8ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	rockchip,clk-trcm = <0x02>;
+};
+
+&i2c1 {
+	status = "okay";
+	es7210: es7210@43 {
+		#sound-dai-cells = <0x00>;
+		reg = <0x43>;
+		compatible = "ES7210_MicArray_0";
+		clocks = <&cru SCLK_I2S0_8CH_RX_OUT>;
+		clock-names = "mclk";
+	};
+	es7210_41: es7210@41 {
+		#sound-dai-cells = <0x00>;
+		reg = <0x41>;
+		compatible = "ES7210_MicArray_1";
+	};
+};
+
+&acodec {
+	status = "disable";
+};
+
+&i2s_8ch_2 {
+	status = "disable";
+};
+
+&acodec_sound {
+	status = "disable";
+};
+
+&sfc {
+	status = "okay";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&u2phy_otg {
+	rockchip,vbus-always-on;
+};
+
+&i2c3 {
+	status = "okay";
+};

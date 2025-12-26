@@ -1,0 +1,4 @@
+timer_symbols.lo: timer_symbols.c \
+ /home/ubuntu1804/workspace/rk3308/prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/aarch64-linux-gnu/libc/usr/include/stdc-predef.h
+
+/home/ubuntu1804/workspace/rk3308/prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/aarch64-linux-gnu/libc/usr/include/stdc-predef.h:

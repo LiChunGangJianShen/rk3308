@@ -1,0 +1,12 @@
+prefix=/home/ubuntu1804/workspace/alsa-lib-1.2.9/install
+exec_prefix=/home/ubuntu1804/workspace/alsa-lib-1.2.9/install
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: alsa
+Description: Advanced Linux Sound Architecture (ALSA) - Library
+Version: 1.2.9
+Requires: 
+Libs: -L${libdir} -lasound
+Libs.private: -lm -lpthread -lrt
+Cflags: -I${includedir}

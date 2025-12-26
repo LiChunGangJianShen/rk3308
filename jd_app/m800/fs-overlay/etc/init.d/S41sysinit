@@ -1,0 +1,32 @@
+#!/bin/sh
+
+vrm()
+{
+	echo 4096 > /proc/sys/vm/min_free_kbytes
+	echo 200 > /proc/sys/vm/vfs_cache_pressure
+}
+
+set_governors_performance()
+{
+	echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+}
+
+case "$1" in
+	start)
+		set_governors_performance
+		# ueventd
+		#echo "bind irq 23 to cpu0"
+		#echo 1 > /proc/irq/23/smp_affinity  (1,2,4,8对应0~3核, 23是usb中断号)
+		#irqno=`cat /proc/interrupts | grep ff400000.usb | awk '{print $1}' | awk -F: '{print $1}'`
+		#echo 8 > /proc/irq/$irqno/smp_affinity
+
+		# vrm
+		;;
+	stop)
+        ;;
+	*)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+exit 0

@@ -17,7 +17,7 @@ export RK_KERNEL_IMG=kernel/arch/arm64/boot/Image.lz4
 # parameter for GPT table
 export RK_PARAMETER=parameter-64bit-h20.txt
 # Buildroot config
-export RK_CFG_BUILDROOT=rockchip_rk3308_bs_h20
+export RK_CFG_BUILDROOT=rockchip_rk3308_bs
 # Recovery config
 export RK_CFG_RECOVERY=rockchip_rk3308_recovery
 # ramboot config

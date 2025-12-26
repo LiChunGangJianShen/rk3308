@@ -1,0 +1,20 @@
+#!/bin/sh
+
+case "$1" in
+	start)
+		if [ -f /data/jdapp ]; then
+			chmod +x /data/jdapp
+			/data/jdapp verbose &
+		else
+			/usr/bin/jdapp &
+		fi
+		;;
+	stop)
+		killall -10 jdapp
+        ;;
+	*)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+exit 0

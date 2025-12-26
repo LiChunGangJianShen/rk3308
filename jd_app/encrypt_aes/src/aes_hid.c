@@ -43,18 +43,10 @@ static int hid_open(const char *dev)
 static bool is_fd_valid(int fd)
 {
     int err = fcntl(fd, F_GETFL);
-	/*if(errno == EBADF)
-	{
-		DEBUG_PRINT("ERR : errno == EBADF\n");
-	}
-	if(err == -1)
-	{
-		DEBUG_PRINT("ERR : err == -1\n");
-	}*/
-    if(err == -1)// || errno == EBADF)
-	{
+    //if(err == -1 || errno == EBADF)//谨慎使用全局变量errno
+    if(err == -1){
         return false;
-	}
+    }
 
     return true;
 }
@@ -78,10 +70,7 @@ static void hid_destroy(int fd)
 static int hid_report_send(int fd, void *data, int data_len)
 {
     if(!is_fd_valid(fd))
-	{
-		DEBUG_PRINT("ERR : is_fd_invalid \n");
         return -1;
-	}
     int err = 0;
     err = write(fd, data, data_len);
     if(err != data_len){
@@ -142,13 +131,13 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             }
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
-            DEBUG_PRINT("write %d bytes, (%s)\n", rc, 
-                (report->cmmd == cmmd_already_auth)?"already auth":"to do auth");
+            int sc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+			DEBUG_PRINT("send(%d) cmd: %d, data: %s\n", sc, report->cmmd, report->data);
         }
         break;
     case cmmd_do_auth:
         DEBUG_PRINT("cmmd_do_auth\n");
+		DEBUG_PRINT("recv data_size: %d, data: %s\n", report->data_size, report->data);
         if(report->data_size > 0){
             AES256_ctx ctx;
             char buf[1018] = {0};
@@ -167,9 +156,8 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             report->data_size = 0;
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
-            DEBUG_PRINT("write %d bytes, (%s)\n", rc, 
-                (report->cmmd == cmmd_success_auth)?"success auth":"fail auth");
+            int sc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+			DEBUG_PRINT("send(%d) cmd: %d, data: %s\n", sc, report->cmmd, report->data);
         }
         break;
     case cmmd_request_devinfo:
@@ -182,8 +170,18 @@ static void hid_report_handle(int fd, st_auth_tool_report_t *report)
             report->data_size = strlen((char *)report->data) + 1;
             report->id = IN_REPORT_ID;
             report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
-            int rc = hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
-            DEBUG_PRINT("write %d bytes, (%s)\n", rc, "request devinfo");
+            hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
+        }
+        break;
+	case cmmd_check_feature_id:
+        DEBUG_PRINT("cmmd_check_feature_id\n");
+        {
+            memset(report->data, 0, sizeof(report->data));
+            strcpy((char *)report->data, AES_FEATURE_ID);
+            report->data_size = strlen(AES_FEATURE_ID);
+            report->id = IN_REPORT_ID;
+            report->crc = cyg_crc16((uint8_t *)report, sizeof(st_auth_tool_report_t)-sizeof(report->crc));
+            hid_report_send(fd, report, sizeof(st_auth_tool_report_t));
         }
         break;
     default:

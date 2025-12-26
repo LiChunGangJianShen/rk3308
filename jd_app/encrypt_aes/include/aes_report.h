@@ -27,6 +27,7 @@ typedef enum
     cmmd_success_auth,
     cmmd_fail_auth,
     cmmd_already_auth,
+    cmmd_check_feature_id,
     cmmd_max,
 } e_auth_tool_cmmd_t;
 
