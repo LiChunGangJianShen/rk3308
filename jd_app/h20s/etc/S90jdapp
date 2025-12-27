@@ -3,12 +3,13 @@
 prepare_clk()
 {
 	echo "Initializing audio clock..."
-	aplay -Ddmix_h20aiao /dev/zero -fs16_le -r22050 -c2 &
+	aplay -Dplug_dmix_h20aiao /dev/zero -fs16_le -r22050 -c2 &
 	PID=$!
 	sleep 1
 	
 	if ps | grep -w "^\s*$PID" > /dev/null; then
-		kill $PID 2>/dev/null
+		kill -9 $PID 2>/dev/null
+		wait $PID 2>/dev/null
 		echo "Audio clock initialization completed"
 	else
 		echo "Warning: Failed to initialize audio clock"

@@ -26,7 +26,6 @@ void exit_pcm(snd_pcm_t *ppcm);
 int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
 int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
 int check_pcm_state(snd_pcm_t *ppcm, int state, const char *alias);
-int alsa_cset(char *card, char *name, int value);
 int get_card_num(const char *name);
 
 #ifdef __cplusplus

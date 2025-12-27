@@ -1,0 +1,131 @@
+#include "log.h"
+#include "API.h"
+
+typedef bool (*ptr_feedback_switch)(int);
+typedef bool (*ptr_mute)(int);
+typedef bool (*ptr_seteq)(float*);
+typedef bool (*ptr_setmicgain)(float);
+typedef char *(*ptr_ver)();
+typedef bool (*ptr_init)();
+typedef void (*ptr_close)();
+typedef void (*ptr_process1)(const short*, const short*, short*, short*, short*, short*);
+typedef void (*ptr_process2)(const short*, const short*, short*, short*);
+typedef void (*ptr_process3)(const short*, const short*, short*, short*);
+
+ptr_feedback_switch algo_feedback_switch = JDZH_H20S_FeedbackOnOff;
+ptr_mute algo_mute = JDZH_H20S_MuteOnOff;
+ptr_seteq algo_seteq = JDZH_H20S_SetEQ;
+ptr_setmicgain algo_set_micgain = JDZH_H20S_SetInputMicGain;
+ptr_ver algo_version = JDZH_H20S_GetVersion;
+ptr_init algo_init1 = JDZH_H20S_Init1;
+ptr_init algo_init2 = JDZH_H20S_Init2;
+ptr_init algo_init3 = JDZH_H20S_Init3;
+ptr_close algo_close1 = JDZH_H20S_Close1;
+ptr_close algo_close2 = JDZH_H20S_Close2;
+ptr_close algo_close3 = JDZH_H20S_Close3;
+ptr_process1 algo_process1 = JDZH_H20S_Process1;
+ptr_process2 algo_process2 = JDZH_H20S_Process2;
+ptr_process3 algo_process3 = JDZH_H20S_Process3;
+
+enum
+{
+    algo_err_1 = -1,
+    algo_err_2 = -2,
+    algo_err_3 = -3,
+    algo_err_max = 0,
+};
+
+int algo_init()
+{
+    short addr_play = 0;
+    int num_play = 0;
+    if(algo_init1(&addr_play, num_play) == false){
+        loge("---- algo 1 init failed----\n");
+        return algo_err_1;
+    }
+    if(algo_init2() == false){
+        loge("---- algo 2 init failed----\n");
+        return algo_err_2;
+    }
+    if(algo_init3() == false){
+        loge("---- algo 3 init failed----\n");
+        return algo_err_3;
+    }
+
+    logi("---- algo all init success ----\n");
+    return algo_err_max;
+}
+
+void algo_close(int err)
+{
+    if(err == algo_err_1){
+        return;
+    }
+    if(err == algo_err_2){
+        algo_close1();
+        return;
+    }
+    if(err == algo_err_3){
+        algo_close1();
+        algo_close2();
+        return;
+    }
+
+    algo_close1();
+    algo_close2();
+    algo_close3();
+}
+
+char *check_algo_version()
+{
+    return algo_version();
+}
+
+void _algo_process1(
+    const short* mic_data1, 
+    const short* mic_data2, 
+    short* out_data1, 
+    short* out_data2, 
+    short* ref_data1, 
+    short* ref_data2)
+{
+    return algo_process1(mic_data1, mic_data2, out_data1, out_data2, ref_data1, ref_data2);
+}
+
+void _algo_process2(
+    const short* mic_data1, 
+    const short* mic_data2, 
+    short* ref_data1, 
+    short* ref_data2)
+{
+    return algo_process2(mic_data1, mic_data2, ref_data1, ref_data2);
+}
+
+void _algo_process3(
+    const short* mic_data1, 
+    const short* mic_data2, 
+    short* ref_data1, 
+    short* ref_data2)
+{
+    return algo_process3(mic_data1, mic_data2, ref_data1, ref_data2);
+}
+
+bool feed_back_switch(int onoff)
+{ 
+    return algo_feedback_switch(onoff); 
+}
+
+bool feed_back_mute(int mute)
+{ 
+    return algo_mute(mute); 
+}
+
+bool feed_back_set_micgain(float gain) 
+{ 
+    return algo_set_micgain(gain); 
+}
+
+bool feed_back_set_eq(float *val) 
+{ 
+    return algo_seteq(val); 
+}
