@@ -2,9 +2,11 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-6.6.4.a
+# 6.6.4 版本没有粉红噪声 JDZH_FeedbackDestroy_PinkNoiseOnOff 这个函数
+# ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-6.6.4.a
+ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy-20251127-3.3.5.a
 RUN_ALGO_LIB_DIR = /oem
-USE_DYNAMIC_LIB	= 0
+USE_DYNAMIC_LIB	= 1
 
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
 CXXFLAGS = -fpermissive
@@ -15,7 +17,7 @@ LDFLAGS = -lasound -lpthread -ldl -lm -lstdc++ $(ALGO_LIB) -L$(LIB_DIR)
 endif
 TARGET = jdapp
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
-APP_VERSION := V1.12
+APP_VERSION := V1.13
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))

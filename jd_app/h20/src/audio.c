@@ -1,6 +1,7 @@
 #include <semaphore.h>
 #include <stdatomic.h>
 #include <sys/prctl.h>
+#include <math.h>
 #include <termios.h>
 #include <stdbool.h>
 #include "log.h"
@@ -10,68 +11,47 @@
 #include "comm.h"
 #include "udp_server.h"
 #include "wav_file.h"
-#include "API.h"
+#include "algo.h"
 #include "audio.h"
 #include "serial.h"
 #include "rkgpio.h"
 
-#define SAMPLE_RATE 22050
-#define PERIOD_SIZE 48
-#define BUFFER_SIZE PERIOD_SIZE*4
-#define ALG_FRAMES  48
-#define ALG_COST_TIME   2
-
-//Asound Card Name
-#define CAPTURE_CARD_NAME  "hw:h20aiao,0"//"default"   //default capture
+#ifndef M_PI
+#define M_PI        3.1415926
+#endif
+#define FB_ON       1
+#define FB_OFF      0
+#define UDP_SERVER_PORT     (6000)
+#define RECORD_CMD_START    "record-cmd-start"
+#define RECORD_CMD_STOP     "record-cmd-stop"
+#define RECORD_CMD_STATUS   "record-cmd-status"
+#define MAX_REC_TIME        60   //s
+#define CAPTURE_CARD_NAME   "hw:h20aiao,0"//"default"   //default capture
 #define PLAYBACK_CARD_NAME  "hw:h20aiao,0"//"default"   //default playback
-//Channels
-#define CAPTURE_CHN   2
-#define PLAYBACK_CHN    2
-#define ALGO_CHN    2
-#define EQ_FILE "/data/eq.conf"
+#define EQ_FILE             "/data/eq.conf"
 
-enum{
+typedef enum{
     alg_idx_1=0,
     alg_idx_2,
     alg_idx_3,
     alg_idx_max
-};
-static struct ringbuffer *rngbuff_ai[alg_idx_max] = {0};
-#define AI_RNGBUFF_SIZE BUFFER_SIZE
-static sem_t g_sem_3a[alg_idx_max];
-static sem_t g_sem_alg_ready[alg_idx_max];
-static sem_t g_sem_alg_ready1[alg_idx_max];
-
-static struct ringbuffer *rngbuff_ao[PLAYBACK_CHN] = {0};
-#define AO_RNGBUFF_SIZE BUFFER_SIZE
-
-//RECORD
-#define REC_RNGBUFF_SIZE SAMPLE_RATE*2
-#define UDP_SERVER_PORT    (6000)
-#define RECORD_CMD_START   "record-cmd-start"
-#define RECORD_CMD_STOP    "record-cmd-stop"
-#define RECORD_CMD_STATUS  "record-cmd-status"
-#define MAX_REC_TIME    60   //s
-
+}algo_idx_t;
 typedef enum {
     algo_record_cmd_none,
     algo_record_cmd_start,
     algo_record_cmd_stop,
 }algo_record_cmd;
-enum{
-    rec_datain=0,
-    rec_dataout
-};
-static struct ringbuffer *rngbuff_rec = 0;
+
+static sem_t g_sem_3a[alg_idx_max];
+static struct ringbuffer *g_ringbuf_ai[alg_idx_max] = {0};
+static struct ringbuffer *g_ringbuf_ao[PLAYBACK_CHN] = {0};
+static struct ringbuffer *g_ringbuf_fill_data[PLAYBACK_CHN] = {0};
+static struct ringbuffer *g_ringbuf_rec = 0;
+static const float ALG_COST_TIME = (float)(ALG_FRAMES / (SAMPLE_RATE / 1000.0f));
+static const float SAMPLE_PER_MS_FLOAT = (float)(SAMPLE_RATE / 1000.0f);
 static FILE *p_file_rec = NULL;
 struct my_wave_file_headers st_wavhead;
 static unsigned long total_size = 0;
-
-struct my_wave_file_headers st_wavhead_dataout;
-static unsigned long total_size_dataout = 0;
-static struct ringbuffer *rngbuff_rec_dataout = 0;
-static FILE *p_file_rec_dataout = NULL;
-
 static atomic_int g_record_action = algo_record_cmd_none;
 
 static pthread_state_t capture_task_state;
@@ -83,11 +63,8 @@ static pthread_state_t rec_task_state;
 static pthread_state_t key_task_state;
 static pthread_state_t serial_task_state;
 
-#define FB_ON       1
-#define FB_OFF      0
 static int g_cur_fb_state = 1;
 static int g_noise_state = 0;
-// static const int g_level_eq[]={-12.0, -11.5, -11.0, -10.5, -};
 static float g_eq[16] = {0.0};
 
 static void rec_start(void);
@@ -121,11 +98,12 @@ static int check_mute_state(void)
 }
 static int key_task(void *arg)
 {
-    prctl(PR_SET_NAME, "key_task");
-    logi("key task start\n");
-
     int cur_mute=0, last_mute=0, already_mute=0;
     int cur_fb=0, last_fb=0;
+
+    prctl(PR_SET_NAME, key_task_state.name);
+    logi("---- proc %s start ----\n", key_task_state.name);
+
     init_fb_gpio();
     init_mute_gpio();
 
@@ -140,16 +118,16 @@ static int key_task(void *arg)
                 g_cur_fb_state = FB_OFF;
             }
             logi("bypass state: %s\n", g_cur_fb_state?"off":"on");
-            JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
+            feed_back_switch(g_cur_fb_state);
         }
 
         cur_mute = check_mute_state();
         if(cur_mute && !last_mute){
             if(!already_mute){
-                JDZH_FeedbackDestroy_MuteOnOff(1);
+                feed_back_mute(1);
             }
             else{
-                JDZH_FeedbackDestroy_MuteOnOff(0);
+                feed_back_mute(0);
             }
 
             already_mute = !already_mute;
@@ -157,37 +135,14 @@ static int key_task(void *arg)
         }
         last_mute = cur_mute;
 
-        usleep(10000);
+        delay_ms(100);
     }
 
     destory_fb_gpio();
     destory_mute_gpio();
 
-    logi("key task stop\n");
+    logi("---- proc %s stop ----\n", key_task_state.name);
     return 0;
-}
-
-int key_task_init(int cpu, int priority)
-{
-    int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
-    }
-
-    memset(&key_task_state, 0, sizeof(key_task_state));
-    ret  = create_thread("key_task", cpu, priority, key_task, &key_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "key_task");
-    }
-
-    return ret;
-}
-
-void key_task_exit(void)
-{
-    destroy_thread(&key_task_state);
 }
 
 float extract_float(const char *input)
@@ -296,7 +251,7 @@ static void algo_eq_init(void)
         for(i = 0; i < 16; i++){
             logi("last eq: %.2f\n", g_eq[i]);
         }
-        JDZH_FeedbackDestroy_SetEQ(g_eq);
+        feed_back_set_eq(g_eq);
         fclose(fp);
     }
     else{
@@ -310,7 +265,7 @@ static void algo_eq_init(void)
         for(i = 0; i < 16; i++){
             logi("initial eq: %.2f\n", g_eq[i]);
         }
-        JDZH_FeedbackDestroy_SetEQ(g_eq);
+        feed_back_set_eq(g_eq);
         fclose(fp);
     }
 }
@@ -417,7 +372,7 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
             g_eq[i] = (float)(data[i]*0.5-12);
             logi("eq para: %.2f db, data: 0x%x\n", g_eq[i], data[i]);
         }
-        JDZH_FeedbackDestroy_SetEQ(g_eq);
+        feed_back_set_eq(g_eq);
         save_eq(g_eq, sizeof(g_eq)/sizeof(g_eq[0]));
         length=16;
         memset(sbuf, 0, sizeof(sbuf));
@@ -474,7 +429,7 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
                 g_cur_fb_state = 0;
             }
 
-            JDZH_FeedbackDestroy_FeedbackOnOff(g_cur_fb_state);
+            feed_back_switch(g_cur_fb_state);
             memset(sbuf, 0, sizeof(sbuf));
             sbuf[0] = 0xFE;
             sbuf[1] = 0x01;
@@ -559,21 +514,22 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
         sbuf[5] = 0x00ff & (sbuf[1]+sbuf[2]+sbuf[3]+sbuf[4]);
         sbuf[6] = 0xFE;
         write(fd, sbuf, 7);
-        // JDZH_FeedbackDestroy_PinkNoiseOnOff(g_noise_state, 1.0);
+        pinknoise_switch(g_noise_state, 1.0);
     }
 }
+
 static int serial_task(void *arg)
 {
 #define SERIAL_DEV  "/dev/ttyS4"
 #define SERIAL_BAUD_RATE    B115200
-    prctl(PR_SET_NAME, "serial_task");
-    logi("serial task start\n");
-
     int max_fd, ret=0;
     fd_set rfds;
     struct timeval tv;
     int serial_fd = -1;
     char rbuf[256]={0};
+
+    prctl(PR_SET_NAME, serial_task_state.name);
+    logi("---- proc %s start ----\n", serial_task_state.name);
 
     serial_fd = serial_init(SERIAL_DEV, SERIAL_BAUD_RATE);
     max_fd = serial_fd;
@@ -607,77 +563,58 @@ static int serial_task(void *arg)
                 }
             }
         }
-        else if(ret == 0){
-            // logi("select serial fd timeout\n");
-        }
 
-        usleep(100);
+        delay_us(100);
     }
 
 __exit:
     serial_exit(serial_fd);
-    logi("serial task stop\n");
+    logi("---- proc %s stop ----\n", serial_task_state.name);
     return 0;
 }
 
-int serial_task_init(int cpu, int priority)
-{
+static int capture_pcm_init(snd_pcm_t **pcm)
+{ 
     int ret = 0;
+    alsa_api_para_t para;
 
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
+    memset(&para, 0, sizeof(para));
+    para.block = SND_PCM_NONBLOCK;
+    para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
+    para.stream = SND_PCM_STREAM_CAPTURE;
+    para.format = SND_PCM_FORMAT_S16_LE;
+    para.chn = CAPTURE_CHN;
+    para.rate = SAMPLE_RATE;
+    para.period_size = PERIOD_SIZE;
+    para.buffer_size = PERIODS*PERIOD_SIZE;
+    sprintf(para.card_name, "%s", CAPTURE_CARD_NAME);
+    if((ret = init_pcm(pcm, para)) < 0){
+        loge("init capture pcm error\n");
     }
-
-    memset(&serial_task_state, 0, sizeof(serial_task_state));
-    ret  = create_thread("serial_task", cpu, priority, serial_task, &serial_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "serial_task");
-    }
-
     return ret;
-}
-
-void serial_task_exit(void)
-{
-    destroy_thread(&serial_task_state);
 }
 
 static int capture_task(void *arg)
 {
-    prctl(PR_SET_NAME, "capture_task");
-    logi("capture task start\n");
-
     int err,get_frames=0;
     snd_pcm_t *ppcm_capture = NULL;
-    alsa_api_para_t params_capture;
-    audio_fmt_t capture_buff[PERIOD_SIZE][CAPTURE_CHN];
+    snd_pcm_state_t pcm_state;
+    int cnt = 0;
+    int start_err = 0;
+    audio_fmt_t capture_buff[PERIOD_SIZE][CAPTURE_CHN] = {0};
     snd_pcm_sframes_t avail_frames = 0;
+    int bytess_buff = sizeof(capture_buff);
+    
+    prctl(PR_SET_NAME, capture_task_state.name);
+    logi("---- proc %s start ----\n", capture_task_state.name);
 
-    memset(capture_buff, 0, sizeof(capture_buff));
-
-    // for(int i = 0; i < alg_idx_max; i++){
-    //     sem_wait(&g_sem_alg_ready[i]);
-    // }
-
-    memset(&params_capture, 0, sizeof(params_capture));
-    params_capture.block = SND_PCM_NONBLOCK;
-    params_capture.access = SND_PCM_ACCESS_RW_INTERLEAVED;
-    params_capture.stream = SND_PCM_STREAM_CAPTURE;
-    params_capture.format = SND_PCM_FORMAT_S16_LE;
-    params_capture.chn = CAPTURE_CHN;
-    params_capture.rate = SAMPLE_RATE;
-    params_capture.period_size = PERIOD_SIZE;
-    params_capture.buffer_size = BUFFER_SIZE;
-    sprintf(params_capture.card_name, "%s", CAPTURE_CARD_NAME);
-    if((err = init_pcm(&ppcm_capture, params_capture)) < 0){
-        loge("init capture pcm error\n");
+    err = capture_pcm_init(&ppcm_capture);
+    if(err < 0){
+        logi("capture pcm init failed\n");
         goto err_to_exit;
     }
 
-    int cnt = 0;
-    snd_pcm_state_t pcm_state;
-    int start_err = snd_pcm_start(ppcm_capture);
+    start_err = snd_pcm_start(ppcm_capture);
     if(start_err < 0){
         loge("first snd_pcm_start failed\n");
     }
@@ -696,23 +633,23 @@ static int capture_task(void *arg)
         }
 
         cnt++;
-        usleep(100000);
+        delay_ms(100);
     }
 
     while (capture_task_state.running)
     {
         if(ppcm_capture){
-            avail_frames = snd_pcm_avail(ppcm_capture);
+            avail_frames = snd_pcm_avail_update(ppcm_capture);
             if(avail_frames >= PERIOD_SIZE){
-                memset(capture_buff, 0, sizeof(capture_buff));
+                memset(capture_buff, 0, bytess_buff);
                 err = pcm_in(ppcm_capture, capture_buff, PERIOD_SIZE, "capture");
                 if(err > 0){
                     get_frames += err;
                     for(int i = 0; i < alg_idx_max; i++){
-                        if(rb_get_space_free(rngbuff_ai[i]) < sizeof(capture_buff)){
-                            rb_discard(rngbuff_ai[i], sizeof(capture_buff));
+                        if(rb_get_space_free(g_ringbuf_ai[i]) < bytess_buff){
+                            rb_discard(g_ringbuf_ai[i], bytess_buff);
                         }
-                        rb_write(rngbuff_ai[i], capture_buff, sizeof(capture_buff));
+                        rb_write(g_ringbuf_ai[i], capture_buff, bytess_buff);
                     }
                 }
             }
@@ -734,89 +671,110 @@ static int capture_task(void *arg)
 err_to_exit:
     if(ppcm_capture)
         snd_pcm_close(ppcm_capture);
-    logi("capture task stop\n");
+    logi("---- proc %s stop -----\n", capture_task_state.name);
 
     return 0;
 }
 
-int capture_task_init(int cpu, int priority)
-{
+static int playback_pcm_init(snd_pcm_t **pcm)
+{ 
     int ret = 0;
+    alsa_api_para_t para;
 
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
+    memset(&para, 0, sizeof(para));
+    para.block = SND_PCM_NONBLOCK;
+    para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
+    para.stream = SND_PCM_STREAM_PLAYBACK;
+    para.format = SND_PCM_FORMAT_S16_LE;
+    para.chn = PLAYBACK_CHN;
+    para.rate = SAMPLE_RATE;
+    para.period_size = PERIOD_SIZE;
+    para.buffer_size = PERIODS*PERIOD_SIZE;
+    sprintf(para.card_name, "%s", PLAYBACK_CARD_NAME);
+    if((ret = init_pcm(pcm, para)) < 0){
+        loge("init playback pcm error\n");
     }
-
-    memset(&capture_task_state, 0, sizeof(capture_task_state));
-    ret  = create_thread("capture_task", cpu, priority, capture_task, &capture_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "capture_task");
-    }
-
     return ret;
 }
 
-void capture_task_exit(void)
-{
-    destroy_thread(&capture_task_state);
+static void smooth_data(audio_fmt_t *data, int len)
+{ 
+    for (int i = 0; i < len; i++){
+        int source_idx = i % len;
+        float progress = (float)i / len;
+        float factor = (1.0f + cosf(progress * M_PI)) * 0.5f;
+        data[i] = (audio_fmt_t)(data[source_idx] * factor);
+    } 
 }
 
 static int playback_task(void *arg)
 {
-    prctl(PR_SET_NAME, "playback_task");
-    logi("playback task start\n");
-
     int err;
     snd_pcm_t *ppcm_playback;
-    alsa_api_para_t params_playback;
-    audio_fmt_t playback_buff[PERIOD_SIZE][PLAYBACK_CHN];
-    audio_fmt_t tmpbuff[PERIOD_SIZE];
+    audio_fmt_t playback_buff[PERIOD_SIZE][PLAYBACK_CHN] = {0};
+    audio_fmt_t tmpbuff[PLAYBACK_CHN][PERIOD_SIZE] = {0};
     snd_pcm_sframes_t avail_frames;
+    int bytess_fmt = sizeof(audio_fmt_t);
+    int bytess = bytess_fmt*PERIOD_SIZE;
 
-    // for(int i = 0; i < alg_idx_max; i++){
-    //     sem_wait(&g_sem_alg_ready1[i]);
-    // }
-    memset(playback_buff, 0, sizeof(playback_buff));
-    memset(tmpbuff, 0, sizeof(tmpbuff));
-    memset(&params_playback, 0, sizeof(params_playback));
-    params_playback.block = SND_PCM_NONBLOCK;
-    params_playback.access = SND_PCM_ACCESS_RW_INTERLEAVED;
-    params_playback.stream = SND_PCM_STREAM_PLAYBACK;
-    params_playback.format = SND_PCM_FORMAT_S16_LE;
-    params_playback.chn = PLAYBACK_CHN;
-    params_playback.rate = SAMPLE_RATE;
-    params_playback.period_size = PERIOD_SIZE;
-    params_playback.buffer_size = BUFFER_SIZE;
-    sprintf(params_playback.card_name, "%s", PLAYBACK_CARD_NAME);
-    if((err = init_pcm(&ppcm_playback, params_playback)) < 0){
-        loge("init playback pcm error\n");
+    prctl(PR_SET_NAME, playback_task_state.name);
+    logi("---- proc %s start ----\n", playback_task_state.name);
+
+    err = playback_pcm_init(&ppcm_playback);
+    if(err < 0){
+        loge("playback pcm init failed\n");
         goto err_to_exit;
     }
 
-    while(rb_get_space_used(rngbuff_ao[0]) < sizeof(tmpbuff)){
-        pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
-        usleep(100);
+    while(1){
+        if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
+            break;
+        }
+        //如果不是必要的，那么不要在开始时输出静音数据，可能造成有效数据过来的时候，
+        //alsa驱动buffer中有静音数据仍未播放完成，增加了延迟
+        // pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
+        delay_us(100);
     }
 
     while (playback_task_state.running)
     {
-        if(rb_get_space_used(rngbuff_ao[0]) < sizeof(tmpbuff)){
-            usleep(100);
-			continue;
-        }
-        
-        for(int i = 0; i < PLAYBACK_CHN; i++){
-            memset(tmpbuff, 0, sizeof(tmpbuff));
-            rb_read(rngbuff_ao[i], tmpbuff, sizeof(tmpbuff));
-            for(int j = 0; j < PERIOD_SIZE; j++){
-                playback_buff[j][i] = tmpbuff[j];
-            }
-        }
-
         if(ppcm_playback){
-            avail_frames = snd_pcm_avail(ppcm_playback);
+            avail_frames = snd_pcm_avail_update(ppcm_playback);
             if(avail_frames >= PERIOD_SIZE){
+                memset(tmpbuff[0], 0, bytess);
+                memset(tmpbuff[1], 0, bytess);
+                if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
+                    rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
+                }
+                else if(rb_get_space_used(g_ringbuf_fill_data[0]) >= bytess){
+                    rb_read(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
+                    if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess){
+                        smooth_data(tmpbuff[0], bytess/bytess_fmt);
+                        rb_write(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
+                    }
+                }
+                else{
+                    logi("playback left-chn, ringbuf-ao and ringbuf-fill no data!!!\n");
+                }
+                if(rb_get_space_used(g_ringbuf_ao[1]) >= bytess){
+                    rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess);
+                }
+                else if(rb_get_space_used(g_ringbuf_fill_data[1]) >= bytess){
+                    rb_read(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
+                    if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess){
+                        smooth_data(tmpbuff[1], bytess/bytess_fmt);
+                        rb_write(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
+                    }
+                }
+                else{
+                    logi("playback right-chn, ringbuf-ao and ringbuf-fill no data!!!\n");
+                }
+                
+                for(int i = 0; i < PLAYBACK_CHN; i++){
+                    for(int j = 0; j < PERIOD_SIZE; j++){
+                        playback_buff[j][i] = tmpbuff[i][j];
+                    }
+                }
                 pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
             }
 			else if(avail_frames < 0){
@@ -824,355 +782,285 @@ static int playback_task(void *arg)
                 check_pcm_state(ppcm_playback, avail_frames, "playback");
             }
         }
-        usleep(100);
+
+        delay_us(100);
     }
     
 err_to_exit:
     if(ppcm_playback)
         snd_pcm_close(ppcm_playback);
-    logi("playback task stop\n");
+    logi("---- proc %s stop ----\n", playback_task_state.name);
     return 0;
-}
-
-int playback_task_init(int cpu, int priority)
-{
-    int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
-    }
-
-    memset(&playback_task_state, 0, sizeof(playback_task_state));
-    ret  = create_thread("playback_task", cpu, priority, playback_task, &playback_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "playback_task");
-    }
-
-    return ret;
-}
-
-void playback_task_exit(void)
-{
-    destroy_thread(&playback_task_state);
 }
 
 static int alg_task(void *arg)
 {
-    prctl(PR_SET_NAME, "alg_task");
-    logi("alg task start\n");
+    struct timeval tvbef, tvaft, tvcur, tvlast;
+    unsigned long time_out_cnt = 0;
+	double cost = 0, cost_max = 0, last_cost_max = 0;
+    audio_fmt_t rec_buff[ALG_FRAMES][REC_CHN] = {0};
+    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN] = {0};
+    audio_fmt_t mic_data1[ALG_FRAMES] = {0};
+    audio_fmt_t mic_data2[ALG_FRAMES] = {0};
+	audio_fmt_t out_data1[ALG_FRAMES] = {0};
+    audio_fmt_t out_data2[ALG_FRAMES] = {0};
+    int bytess = sizeof(audio_fmt_t);
+    int bytess_alg_frames = bytess*ALG_FRAMES;
+    int bytess_capture_buff = bytess_alg_frames*CAPTURE_CHN;
+    int bytess_rec_buff = bytess_alg_frames*REC_CHN;
 
-    int i;
-    unsigned long cost_time, timeout_cnt=0;
-    struct timeval tva,tvb,tvc,tvl;
-    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN];
-    audio_fmt_t playback_buff[ALG_FRAMES][PLAYBACK_CHN];
-    audio_fmt_t mic_data1[ALG_FRAMES];
-    audio_fmt_t mic_data2[ALG_FRAMES];
-	audio_fmt_t out_data1[ALG_FRAMES];
-    audio_fmt_t out_data2[ALG_FRAMES];
+    prctl(PR_SET_NAME, alg_task_state.name);
+    logi("---- proc %s start ----\n", alg_task_state.name);
 
-    memset(capture_buff, 0, sizeof(capture_buff));
-    memset(playback_buff, 0, sizeof(playback_buff));
-    memset(mic_data1, 0, sizeof(mic_data1));
-    memset(mic_data2, 0, sizeof(mic_data2));
-    memset(out_data1, 0, sizeof(out_data1));
-    memset(out_data2, 0, sizeof(out_data2));
-
-    algo_eq_init();
-
-    sem_post(&g_sem_alg_ready[alg_idx_1]);
-    sem_post(&g_sem_alg_ready1[alg_idx_1]);
-
-	gettimeofday(&tvc, NULL);
-	gettimeofday(&tvl, NULL);
+    gettimeofday(&tvlast, NULL);
     while(alg_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) < sizeof(capture_buff)){
-            sem_wait(&g_sem_3a[alg_idx_1]);
+        sem_wait(&g_sem_3a[alg_idx_1]);
+
+        if(rb_get_space_used(g_ringbuf_ai[alg_idx_1]) < bytess_capture_buff){
+            delay_us(100);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_1]) >= sizeof(capture_buff)){
-            memset(capture_buff, 0, sizeof(capture_buff));
-            rb_read(rngbuff_ai[alg_idx_1], capture_buff, sizeof(capture_buff));
-            memset(mic_data1, 0, sizeof(mic_data1));
-            memset(mic_data2, 0, sizeof(mic_data2));
-            for(i = 0; i < ALG_FRAMES; i++){
-                mic_data1[i] = capture_buff[i][0];
-                mic_data2[i] = capture_buff[i][1];
-            }
+        rb_read(g_ringbuf_ai[alg_idx_1], capture_buff, bytess_capture_buff);
+        for(int i = 0; i < ALG_FRAMES; i++){
+            mic_data1[i] = capture_buff[i][0];
+            mic_data2[i] = capture_buff[i][1];
+        }
 
-            gettimeofday(&tva, NULL);
-            memset(out_data1, 0, sizeof(out_data1));
-            memset(out_data2, 0, sizeof(out_data2));
+        memset(out_data1, 0, bytess_alg_frames);
+        memset(out_data2, 0, bytess_alg_frames);
+        gettimeofday(&tvbef, NULL);
 #if ENABLE_ALGO
-            JDZH_FeedbackDestroy_Process1(mic_data1, mic_data2, out_data1, out_data2, NULL, NULL);
+        _algo_process1(mic_data1, mic_data2, out_data1, out_data2, NULL, NULL);
 #else
-			memcpy(out_data1, mic_data1, sizeof(out_data1));
-			memcpy(out_data2, mic_data2, sizeof(out_data2));
+        memcpy(out_data1, mic_data1, bytess_alg_frames);
+        memcpy(out_data2, mic_data2, bytess_alg_frames);
 #endif
-            gettimeofday(&tvb, NULL);
-			gettimeofday(&tvc, NULL);
-			
-			if(check_time_increment_s(tvl, tvc) > 3){
-				gettimeofday(&tvl, NULL);
-				cost_time = check_time_increment_ms(tva, tvb);
-				if(cost_time > ALG_COST_TIME){
-					timeout_cnt++;
-					logd("algo1 error, timeout (%ld)ms, timeout_cnt(%ld)\n", cost_time, timeout_cnt);
-				}
-				else{
-				    logd("algo1 cost time (%ld)ms\n", cost_time);
-				}
-			}
-
-            if(rb_get_space_free(rngbuff_ao[0]) < sizeof(out_data1)){
-                rb_discard(rngbuff_ao[0], sizeof(out_data1));
-            }
-            rb_write(rngbuff_ao[0], out_data1, sizeof(out_data1));
+        gettimeofday(&tvaft, NULL);
+        if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_ao[0], out_data1, bytess_alg_frames);
+        if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_fill_data[0], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_fill_data[0], out_data1, bytess_alg_frames);
 #if TWO_OUT_DATA
-            if(rb_get_space_free(rngbuff_ao[1]) < sizeof(out_data2)){
-                rb_discard(rngbuff_ao[1], sizeof(out_data2));
-            }
-            rb_write(rngbuff_ao[1], out_data2, sizeof(out_data2));
+        if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_ao[1], out_data2, bytess_alg_frames);
+        if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_fill_data[1], out_data2, bytess_alg_frames);
 #else
-            if(rb_get_space_free(rngbuff_ao[1]) < sizeof(out_data1)){
-                rb_discard(rngbuff_ao[1], sizeof(out_data1));
-            }
-            rb_write(rngbuff_ao[1], out_data1, sizeof(out_data1));
+        if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_ao[1], out_data1, bytess_alg_frames);
+        if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
+            rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
+        }
+        rb_write(g_ringbuf_fill_data[1], out_data1, bytess_alg_frames);
 #endif
-
-            if(atomic_load(&g_record_action) == algo_record_cmd_start){
-                rb_write(rngbuff_rec, capture_buff, sizeof(capture_buff));
-                for(i = 0; i < ALG_FRAMES; i++){
-                    playback_buff[i][0] = out_data1[i];
-#if TWO_OUT_DATA
-                    playback_buff[i][1] = out_data2[i];
-#else
-                    playback_buff[i][1] = out_data1[i];
-#endif
+        cost = check_time_increment_ms_f(tvbef, tvaft);
+        if(cost > cost_max){
+            cost_max = cost;
+        }
+        if(cost_max > ALG_COST_TIME){
+            time_out_cnt++;
+            if(cost_max > last_cost_max){
+                double delay = cost_max - ALG_COST_TIME;
+                int delay_sample = (int)round(delay * SAMPLE_PER_MS_FLOAT);//四舍五入
+                int bytess_delay = bytess * delay_sample;
+                last_cost_max = cost_max;
+                if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_delay){
+                    rb_discard(g_ringbuf_ao[0], bytess_delay);
                 }
-                rb_write(rngbuff_rec_dataout, playback_buff, sizeof(playback_buff));
+                rb_write(g_ringbuf_ao[0], out_data1, bytess_delay);
+                #if TWO_OUT_DATA
+                if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
+                    rb_discard(g_ringbuf_ao[1], bytess_delay);
+                }
+                rb_write(g_ringbuf_ao[1], out_data2, bytess_delay);
+                #else
+                if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
+                    rb_discard(g_ringbuf_ao[1], bytess_delay);
+                }
+                rb_write(g_ringbuf_ao[1], out_data1, bytess_delay);
+                #endif
             }
+        }
+
+        gettimeofday(&tvcur, NULL);
+        if(check_time_increment_s(tvlast, tvcur) >= 3){
+            gettimeofday(&tvlast, NULL);
+            if(time_out_cnt > 0){
+                logd("----------algo1 cost time err max=%.2f ms, voer_time_count=%ld\n", 
+                    cost_max, time_out_cnt);
+            }
+            else{
+                logd("----------algo1 cost time max=%.2f ms\n", cost_max);
+            }
+            time_out_cnt = 0;
+            cost_max = 0;
+        }
+
+        if(atomic_load(&g_record_action) == algo_record_cmd_start){
+            for(int i = 0; i < ALG_FRAMES; i++){
+                rec_buff[i][0] = capture_buff[i][0];
+                rec_buff[i][1] = capture_buff[i][1];
+                rec_buff[i][2] = out_data1[i];
+                #if TWO_OUT_DATA
+                rec_buff[i][3] = out_data2[i];
+                #else
+                rec_buff[i][3] = out_data1[i];
+                #endif
+            }
+            rb_write(g_ringbuf_rec, rec_buff, bytess_rec_buff);
         }
 
         usleep(100);
     }
 
-    logi("alg task exit\n");
+    logi("---- proc %s stop ----\n", alg_task_state.name);
     return 0;
-}
-
-int alg_task_init(int cpu, int priority)
-{
-    int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
-    }
-
-    memset(&alg_task_state, 0, sizeof(alg_task_state));
-    ret  = create_thread("alg_task", cpu, priority, alg_task, &alg_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "alg_task");
-    }
-
-    return ret;
-}
-
-void alg_task_exit(void)
-{
-    destroy_thread(&alg_task_state);
 }
 
 static int alg2_task(void *arg)
 {
-    prctl(PR_SET_NAME, "alg2_task");
-    logi("alg2 task start\n");
+    struct timeval tvbef, tvaft, tvcur, tvlast;
+    unsigned long time_out_cnt = 0;
+	double cost = 0, cost_max = 0;
+    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN] = {0};
+    audio_fmt_t mic_data1[ALG_FRAMES] = {0};
+    audio_fmt_t mic_data2[ALG_FRAMES] = {0};
+    int bytess = sizeof(audio_fmt_t);
+    int bytess_alg_frames = bytess*ALG_FRAMES;
+    int bytess_capture_buff = bytess_alg_frames*CAPTURE_CHN;
 
-    int i;
-    unsigned long cost_time, timeout_cnt=0;
-    struct timeval tva,tvb,tvc,tvl;
-    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN];
-    audio_fmt_t mic_data1[ALG_FRAMES];
-    audio_fmt_t mic_data2[ALG_FRAMES];
+    prctl(PR_SET_NAME, alg2_task_state.name);
+    logi("---- proc %s start ----\n", alg2_task_state.name);
 
-    memset(capture_buff, 0, sizeof(capture_buff));
-    memset(mic_data1, 0, sizeof(mic_data1));
-    memset(mic_data2, 0, sizeof(mic_data2));
-
-    sem_post(&g_sem_alg_ready[alg_idx_2]);
-    sem_post(&g_sem_alg_ready1[alg_idx_2]); 
-
-	gettimeofday(&tvc, NULL);
-	gettimeofday(&tvl, NULL);
+	gettimeofday(&tvlast, NULL);
     while(alg2_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) < sizeof(capture_buff)){
-            sem_wait(&g_sem_3a[alg_idx_2]);
+        sem_wait(&g_sem_3a[alg_idx_2]);
+
+        if(rb_get_space_used(g_ringbuf_ai[alg_idx_2]) < bytess_capture_buff){
+            delay_us(100);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_2]) >= sizeof(capture_buff)){
-            memset(capture_buff, 0, sizeof(capture_buff));
-            rb_read(rngbuff_ai[alg_idx_2], capture_buff, sizeof(capture_buff));
-            memset(mic_data1, 0, sizeof(mic_data1));
-            memset(mic_data2, 0, sizeof(mic_data2));
-            for(i = 0; i < ALG_FRAMES; i++){
-                mic_data1[i] = capture_buff[i][0];
-                mic_data2[i] = capture_buff[i][1];
-            }
-            gettimeofday(&tva, NULL);
+        rb_read(g_ringbuf_ai[alg_idx_2], capture_buff, bytess_capture_buff);
+        for(int i = 0; i < ALG_FRAMES; i++){
+            mic_data1[i] = capture_buff[i][0];
+            mic_data2[i] = capture_buff[i][1];
+        }
+        gettimeofday(&tvbef, NULL);
 #if ENABLE_ALGO
-            JDZH_FeedbackDestroy_Process2(mic_data1, mic_data2, NULL, NULL);
+        _algo_process2(mic_data1, mic_data2, NULL, NULL);
 #endif
-            gettimeofday(&tvb, NULL);
-			gettimeofday(&tvc, NULL);
-
-			if(check_time_increment_s(tvl, tvc) > 3){
-				gettimeofday(&tvl, NULL);
-				cost_time = check_time_increment_ms(tva, tvb);
-				if(cost_time > ALG_COST_TIME){
-					timeout_cnt++;
-					logd("alg2 error, timeout (%ld)ms, timeout_cnt(%ld)\n", cost_time, timeout_cnt);
-				}
-				else{
-				    logd("alg2 cost time (%ld)ms\n", cost_time);
-				}
-			}
+        gettimeofday(&tvaft, NULL);
+		cost = check_time_increment_ms_f(tvbef, tvaft);
+        if(cost > cost_max){
+            cost_max = cost;
+        }
+        if(cost_max > ALG_COST_TIME){
+            time_out_cnt++;
+        }
+        gettimeofday(&tvcur, NULL);
+        if(check_time_increment_s(tvlast, tvcur) >= 3){
+            gettimeofday(&tvlast, NULL);
+            if(time_out_cnt > 0){
+                logd("----------algo2 cost time err max=%.2f ms, voer_time_count=%ld\n", 
+                    cost_max, time_out_cnt);
+            }
+            else{
+                logd("----------algo2 cost time max=%.2f ms\n", cost_max);
+            }
+            time_out_cnt = 0;
+            cost_max = 0;
         }
 
-        usleep(100);
+        delay_us(100);
     }
 
-    logi("alg2 task exit\n");
+    logi("---- proc %s stop ----\n", alg2_task_state.name);
     return 0;
-}
-
-int alg2_task_init(int cpu, int priority)
-{
-    int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
-    }
-
-    memset(&alg2_task_state, 0, sizeof(alg2_task_state));
-    ret  = create_thread("alg2_task", cpu, priority, alg2_task, &alg2_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "alg2_task");
-    }
-
-    return ret;
-}
-
-void alg2_task_exit(void)
-{
-    destroy_thread(&alg2_task_state);
 }
 
 static int alg3_task(void *arg)
 {
-    prctl(PR_SET_NAME, "alg3_task");
-    logi("alg3 task start\n");
+    struct timeval tvbef, tvaft, tvcur, tvlast;
+    unsigned long time_out_cnt = 0;
+	double cost = 0, cost_max = 0;   
+    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN] = {0};
+    audio_fmt_t mic_data1[ALG_FRAMES] = {0};
+    audio_fmt_t mic_data2[ALG_FRAMES] = {0};
+    int bytess = sizeof(audio_fmt_t);
+    int bytess_alg_frames = bytess*ALG_FRAMES;
+    int bytess_capture_buff = bytess_alg_frames*CAPTURE_CHN;
 
-    int i;
-    unsigned long cost_time, timeout_cnt=0;
-    struct timeval tva,tvb,tvc,tvl;   
-    audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN];
-    audio_fmt_t mic_data1[ALG_FRAMES];
-    audio_fmt_t mic_data2[ALG_FRAMES];
+    prctl(PR_SET_NAME, alg3_task_state.name);
+    logi("---- proc %s start ----\n", alg3_task_state.name);
 
-    memset(capture_buff, 0, sizeof(capture_buff));
-    memset(mic_data1, 0, sizeof(mic_data1));
-    memset(mic_data2, 0, sizeof(mic_data2));
-
-    sem_post(&g_sem_alg_ready[alg_idx_3]); 
-    sem_post(&g_sem_alg_ready1[alg_idx_3]);
-
-	gettimeofday(&tvc, NULL);
-	gettimeofday(&tvl, NULL);
+	gettimeofday(&tvlast, NULL);
     while(alg2_task_state.running){
-        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) < sizeof(capture_buff)){
-            sem_wait(&g_sem_3a[alg_idx_3]);
+        sem_wait(&g_sem_3a[alg_idx_3]);
+
+        if(rb_get_space_used(g_ringbuf_ai[alg_idx_3]) < bytess_capture_buff){
+            delay_us(100);
             continue;
         }
 
-        if(rb_get_space_used(rngbuff_ai[alg_idx_3]) >= sizeof(capture_buff)){
-            memset(capture_buff, 0, sizeof(capture_buff));
-            rb_read(rngbuff_ai[alg_idx_3], capture_buff, sizeof(capture_buff));
-            memset(mic_data1, 0, sizeof(mic_data1));
-            memset(mic_data2, 0, sizeof(mic_data2));
-            for(i = 0; i < ALG_FRAMES; i++){
-                mic_data1[i] = capture_buff[i][0];
-                mic_data2[i] = capture_buff[i][1];
-            }
-
-            gettimeofday(&tva, NULL);
-#if ENABLE_ALGO
-            JDZH_FeedbackDestroy_Process3(mic_data1, mic_data2, NULL, NULL);
-#endif
-            gettimeofday(&tvb, NULL);
-			gettimeofday(&tvc, NULL);
-
-			if(check_time_increment_s(tvl, tvc) > 3){
-				gettimeofday(&tvl, NULL);
-				cost_time = check_time_increment_ms(tva, tvb);
-				if(cost_time > ALG_COST_TIME){
-					timeout_cnt++;
-					logd("alg3 error, timeout (%ld)ms, timeout_cnt(%ld)\n", cost_time, timeout_cnt);
-				}
-				else{
-				    logd("alg3 cost time (%ld)ms\n", cost_time);
-				}
-			}
+        rb_read(g_ringbuf_ai[alg_idx_3], capture_buff, bytess_capture_buff);
+        for(int i = 0; i < ALG_FRAMES; i++){
+            mic_data1[i] = capture_buff[i][0];
+            mic_data2[i] = capture_buff[i][1];
         }
 
-        usleep(100);
+        gettimeofday(&tvbef, NULL);
+#if ENABLE_ALGO
+        _algo_process3(mic_data1, mic_data2, NULL, NULL);
+#endif
+        gettimeofday(&tvaft, NULL);
+		cost = check_time_increment_ms_f(tvbef, tvaft);
+        if(cost > cost_max){
+            cost_max = cost;
+        }
+        if(cost_max > ALG_COST_TIME){
+            time_out_cnt++;
+        }
+        gettimeofday(&tvcur, NULL);
+        if(check_time_increment_s(tvlast, tvcur) >= 3){
+            gettimeofday(&tvlast, NULL);
+            if(time_out_cnt > 0){
+                logd("----------algo3 cost time err max=%.2f ms, voer_time_count=%ld\n", 
+                    cost_max, time_out_cnt);
+            }
+            else{
+                logd("----------algo3 cost time max=%.2f ms\n", cost_max);
+            }
+            time_out_cnt = 0;
+            cost_max = 0;
+        }
+
+        delay_us(100);
     }
 
-    logi("alg3 task exit\n");
+    logi("---- proc %s stop ----\n", alg3_task_state.name);
     return 0;
-}
-
-int alg3_task_init(int cpu, int priority)
-{
-    int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
-        return -1;
-    }
-
-    memset(&alg3_task_state, 0, sizeof(alg3_task_state));
-    ret  = create_thread("alg3_task", cpu, priority, alg3_task, &alg3_task_state);
-    if(ret != 0){
-        loge("create %s thread failed\n", "alg3_task");
-    }
-
-    return ret;
-}
-
-void alg3_task_exit(void)
-{
-    destroy_thread(&alg3_task_state);
 }
 
 static void rec_start(void)
 {
 	char path[256] = {0};
 
-    snprintf(path, sizeof(path), "/data/algo_in.wav");
+    snprintf(path, sizeof(path), "/data/rec.wav");
     if(!p_file_rec) {
         p_file_rec = fopen(path, "w");
-        wav_start_write(p_file_rec, &st_wavhead, 16, CAPTURE_CHN, SAMPLE_RATE);
-    }
-
-    snprintf(path, sizeof(path), "/data/algo_out.wav");
-    if(!p_file_rec_dataout) {
-        p_file_rec_dataout = fopen(path, "w");
-        wav_start_write(p_file_rec_dataout, &st_wavhead_dataout, 16, PLAYBACK_CHN, SAMPLE_RATE);
+        wav_start_write(p_file_rec, &st_wavhead, 16, REC_CHN, SAMPLE_RATE);
     }
 }
 
@@ -1183,34 +1071,29 @@ static void rec_stop(void)
         fclose(p_file_rec);
         p_file_rec = NULL;
     }
-    if(p_file_rec_dataout){
-        wav_stop_write(p_file_rec_dataout, &st_wavhead_dataout, total_size_dataout);
-        fclose(p_file_rec_dataout);
-        p_file_rec_dataout = NULL;
-    }
 }
 
 static int rec_task(void *arg)
 {
-    prctl(PR_SET_NAME, "rec_task");
-    logi("rec task start\n");
-
-    int wcnt,ret,poll_ms;
-    audio_fmt_t wrbuff[SAMPLE_RATE][CAPTURE_CHN];
-    audio_fmt_t wrdataoutbuff[SAMPLE_RATE][PLAYBACK_CHN];
     udp_server* recv_udp = NULL;
+    int wcnt,ret,poll_ms;
+    audio_fmt_t wrbuff[SAMPLE_RATE][REC_CHN] = {0};
+    int bytes_wrbuff = sizeof(wrbuff);
     char buf[1024] = {0};
+    struct sockaddr_in start_client_addr;
     struct sockaddr_in client_addr;
-    unsigned long cur_time, rest_time;
-    static unsigned long start_record_time = 0;
-    static unsigned long expect_time = 0;
+    unsigned long rec_time;
+    struct timeval tvcur, tvstart;
+
+    prctl(PR_SET_NAME, rec_task_state.name);
+    logi("---- proc %s start ----\n", rec_task_state.name);
 
     recv_udp = udp_server_init(UDP_SERVER_PORT);
     if(!recv_udp){
         loge("record recv udp init error\n");
         exit(-1);
     }
-    poll_ms = 1000; //select超时时间
+    poll_ms = 1000;
     memset(&client_addr, 0, sizeof(struct sockaddr_in));
 
     while(rec_task_state.running){
@@ -1219,159 +1102,214 @@ static int rec_task(void *arg)
             buf[sizeof(buf) - 1] = '\0';
             logd("recv cmmd: %s\n", buf);
             if (strstr(buf, RECORD_CMD_START)) {
-                start_record_time = get_sys_ms();
-                cur_time = start_record_time;
+                gettimeofday(&tvstart, NULL);
                 rec_start();
-                rb_cleanup(rngbuff_rec);
-                rb_cleanup(rngbuff_rec_dataout);
+                rb_cleanup(g_ringbuf_rec);
                 atomic_store(&g_record_action, algo_record_cmd_start);
                 udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
+				memcpy(&start_client_addr, &client_addr, sizeof(struct sockaddr_in));
                 logd("send cmd: %s, ret:%d\n", buf, ret);
             } else if (strstr(buf, RECORD_CMD_STOP)) {
                 atomic_store(&g_record_action, algo_record_cmd_stop);
                 ret = udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                 logd("send cmd: %s, ret:%d\n", buf, ret);
+				if((client_addr.sin_addr.s_addr != start_client_addr.sin_addr.s_addr) ||
+                    (client_addr.sin_port != start_client_addr.sin_port)){
+                    logd("------ diff client addr ------\n");
+                    memcpy(&client_addr, &start_client_addr, sizeof(struct sockaddr_in));
+                }
             } else if (strstr(buf, RECORD_CMD_STATUS)) {
                 if(atomic_load(&g_record_action) == algo_record_cmd_start)  {
-                    cur_time = get_sys_ms();
-                    rest_time = expect_time - (cur_time - start_record_time)/1000;
-                    logd("rest_time=%ld s\n", rest_time);
-                    if(rest_time > 0){
-                        snprintf(buf, sizeof(buf), "%s=%s %lds", RECORD_CMD_STATUS, "going", rest_time);
+                    gettimeofday(&tvcur, NULL);
+                    rec_time = check_time_increment_s(tvstart, tvcur);
+                    logd("rec_time=%ld s\n", rec_time);
+                    if(rec_time < MAX_REC_TIME){
+                        snprintf(buf, sizeof(buf), "%s=%s %lds", RECORD_CMD_STATUS, "going", rec_time+1);
                         udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("send cmd: %s, ret:%d\n", buf, ret);
                     }
-                    else if(rest_time <= 0){
+                    else if(rec_time+1 >= MAX_REC_TIME){
                         snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "end_of_record");
                         udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
                         logd("to end of recording\n");
                     }
                 }
-            } else if (strstr(buf, "sec-")) {
-                int i = 0;
-                while(buf[i] != '-')
-                    i++;
-                i++;
-                expect_time = atoi(buf+i);
-                if(expect_time > MAX_REC_TIME)
-                    expect_time = MAX_REC_TIME;
-                logd("expect_time:%ld s\n", expect_time);
             }
         }
 
         if(atomic_load(&g_record_action) == algo_record_cmd_start){
-            if(rb_get_space_used(rngbuff_rec) >= sizeof(wrbuff)){
-                rb_read(rngbuff_rec, wrbuff, sizeof(wrbuff));
+            if(rb_get_space_used(g_ringbuf_rec) >= bytes_wrbuff){
+                rb_read(g_ringbuf_rec, wrbuff, bytes_wrbuff);
                 if(p_file_rec){
-                    wcnt = fwrite(wrbuff, 1, sizeof(wrbuff), p_file_rec);
+                    wcnt = fwrite(wrbuff, 1, bytes_wrbuff, p_file_rec);
                     total_size += wcnt;
-                    logd("record data total_size=%ld\n", total_size);
-                }
-            }
-            if(rb_get_space_used(rngbuff_rec_dataout) >= sizeof(wrdataoutbuff)){
-                rb_read(rngbuff_rec_dataout, wrdataoutbuff, sizeof(wrdataoutbuff));
-                if(p_file_rec_dataout){
-                    wcnt = fwrite(wrdataoutbuff, 1, sizeof(wrdataoutbuff), p_file_rec_dataout);
-                    total_size_dataout += wcnt;
-                    logd("record dataout total_size=%ld\n", total_size_dataout);
+                    logd("record write data total_size=%ld\n", total_size);
                 }
             }
         }
-        else if(atomic_load(&g_record_action) == algo_record_cmd_stop){
-            if(rb_get_space_used(rngbuff_rec) >= sizeof(wrbuff)){
-                rb_read(rngbuff_rec, wrbuff, sizeof(wrbuff));
-                if(p_file_rec){
-                    wcnt = fwrite(wrbuff, 1, sizeof(wrbuff), p_file_rec);
-                    total_size += wcnt;
-                    logd("record datain total_size=%ld\n", total_size);
-                }
-            }
-            if(rb_get_space_used(rngbuff_rec_dataout) >= sizeof(wrdataoutbuff)){
-                rb_read(rngbuff_rec_dataout, wrdataoutbuff, sizeof(wrdataoutbuff));
-                if(p_file_rec_dataout){
-                    wcnt = fwrite(wrdataoutbuff, 1, sizeof(wrdataoutbuff), p_file_rec_dataout);
-                    total_size_dataout += wcnt;
-                    logd("record dataout total_size=%ld\n", total_size_dataout);
-                }
-            }
-            
+        else if(atomic_load(&g_record_action) == algo_record_cmd_stop){      
             atomic_store(&g_record_action, algo_record_cmd_none);
+            rec_stop();
             logd("record complete, g_record_action=%d\n", atomic_load(&g_record_action));
             snprintf(buf, sizeof(buf), "%s=%s", RECORD_CMD_STATUS, "finish");
             udp_server_send(recv_udp, &client_addr, buf, sizeof(buf));
             logd("send cmd: %s, ret:%d\n", buf, ret);
-            rec_stop();
         }
-        usleep(100);
+
+        delay_ms(10);
     }
 
     udp_server_exit(recv_udp);
 
-    logi("rec task exit\n");
+    logi("---- proc %s stop ----\n", rec_task_state.name);
     return 0;
 }
 
-int rec_task_init(int cpu, int priority)
+static int task_init(const int cpu, 
+    const int priority, 
+    const char *name, 
+    pthread_state_t *state,
+    thread_func func)
 {
     int ret = 0;
-
-    if(cpu < 0 || cpu > 3){
-        logw("cpu num invalid(%d)\n", cpu);
+    if(name == NULL || state == NULL){
         return -1;
     }
 
-    memset(&rec_task_state, 0, sizeof(rec_task_state));
-    ret  = create_thread("rec_task", cpu, priority, rec_task, &rec_task_state);
+    ret = create_thread(name, cpu, priority, func, state);
     if(ret != 0){
-        loge("create %s thread failed\n", "rec_task");
+        loge("create task(%s) failed\n", name);
+        return -1;
+    }
+
+    logi("create task(%s) success\n", name);
+
+    return 0;
+}
+
+static void task_destroy(pthread_state_t *state)
+{
+    if(state == NULL){
+        return;
+    }
+    destroy_thread(state);
+}
+
+int audio_start()
+{ 
+    int ret = 0;
+    int size;
+
+    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4 * CAPTURE_CHN;
+    for(int i = 0; i < alg_idx_max; i++){
+        g_ringbuf_ai[i] = rb_create(size);
+    }
+    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4;
+    for(int i = 0; i < PLAYBACK_CHN; i++){
+        g_ringbuf_ao[i] = rb_create(size);
+    }
+    size = sizeof(audio_fmt_t) * ALG_FRAMES * 2;
+    for(int i = 0; i < PLAYBACK_CHN; i++){
+        g_ringbuf_fill_data[i] = rb_create(size);
+    }
+    size = sizeof(audio_fmt_t) * SAMPLE_RATE * 2 * REC_CHN;
+    g_ringbuf_rec = rb_create(size);
+
+    for(int i = 0; i < alg_idx_max; i++){
+        sem_init(&g_sem_3a[i], 0, 0);
+    }
+
+    algo_eq_init();
+
+    ret = task_init(CPU_1, 70, "algo1", &alg_task_state, alg_task);
+    if(ret < 0){
+        goto err_algo1;
+    }
+    ret = task_init(CPU_2, 70, "algo2", &alg2_task_state, alg2_task);
+    if(ret < 0){
+        goto err_algo2;
+    }
+    ret = task_init(CPU_3, 70, "algo3", &alg3_task_state, alg3_task);
+    if(ret < 0){
+        goto err_algo3;
+    }
+    ret = task_init(CPU_0, 70, "capture", &capture_task_state, capture_task);
+    if(ret < 0){
+        goto err_capture;
+    }
+
+    ret = task_init(CPU_0, 70, "playback", &playback_task_state, playback_task);
+    if(ret < 0){
+        goto err_playback;
+    }
+
+    ret = task_init(CPU_0, 60, "serial", &serial_task_state, serial_task);
+    if(ret < 0){
+        goto err_serial;
+    }
+
+    ret = task_init(CPU_0, 60, "key", &key_task_state, key_task);
+    if(ret < 0){
+        goto err_key;
+    }
+
+    ret = task_init(CPU_0, 50, "record", &rec_task_state, rec_task);
+    if(ret < 0){
+        goto err_rec;
     }
 
     return ret;
-}
 
-void rec_task_exit(void)
-{
-    destroy_thread(&rec_task_state);
-}
-
-void _sem_init(void)
-{
-    for(int i = 0; i < alg_idx_max; i++){
-        sem_init(&g_sem_3a[i], 0, 0);
-        sem_init(&g_sem_alg_ready[i], 0, 0);
-        sem_init(&g_sem_alg_ready1[i], 0, 0);
-    }
-}
-
-void _sem_destroy(void)
-{
+err_rec:
+    task_destroy(&key_task_state);
+err_key:
+    task_destroy(&serial_task_state);
+err_serial:
+    task_destroy(&playback_task_state);
+err_playback:
+    task_destroy(&capture_task_state);
+err_capture:
+    task_destroy(&alg3_task_state);
+err_algo3:
+    task_destroy(&alg2_task_state);
+err_algo2:
+    task_destroy(&alg_task_state);
+err_algo1:
     for(int i = 0; i < alg_idx_max; i++){
         sem_destroy(&g_sem_3a[i]);
-        sem_destroy(&g_sem_alg_ready[i]);
-        sem_destroy(&g_sem_alg_ready1[i]);
     }
-}
 
-void init_rngbuff(void)
-{
     for(int i = 0; i < alg_idx_max; i++){
-        rngbuff_ai[i] = rb_create(sizeof(audio_fmt_t)*AI_RNGBUFF_SIZE*CAPTURE_CHN);
+        rb_destroy(g_ringbuf_ai[i]);
     }
     for(int i = 0; i < PLAYBACK_CHN; i++){
-        rngbuff_ao[i] = rb_create(sizeof(audio_fmt_t)*AO_RNGBUFF_SIZE*PLAYBACK_CHN);
+        rb_destroy(g_ringbuf_ao[i]);
+        rb_destroy(g_ringbuf_fill_data[i]);
     }
-    rngbuff_rec = rb_create(sizeof(audio_fmt_t)*REC_RNGBUFF_SIZE*CAPTURE_CHN);
-    rngbuff_rec_dataout = rb_create(sizeof(audio_fmt_t)*REC_RNGBUFF_SIZE*PLAYBACK_CHN);
+    rb_destroy(g_ringbuf_rec);
+    return ret;
 }
 
-void exit_rngbuff(void)
+void audio_stop()
 {
+    task_destroy(&alg_task_state);
+    task_destroy(&alg2_task_state);
+    task_destroy(&alg3_task_state);
+    task_destroy(&capture_task_state);
+    task_destroy(&playback_task_state);
+    task_destroy(&serial_task_state);
+    task_destroy(&rec_task_state);
+
     for(int i = 0; i < alg_idx_max; i++){
-        rb_destroy(rngbuff_ai[i]);
+        sem_destroy(&g_sem_3a[i]);
+    }
+
+    for(int i = 0; i < alg_idx_max; i++){
+        rb_destroy(g_ringbuf_ai[i]);
     }
     for(int i = 0; i < PLAYBACK_CHN; i++){
-        rb_destroy(rngbuff_ao[i]);
+        rb_destroy(g_ringbuf_ao[i]);
+        rb_destroy(g_ringbuf_fill_data[i]);
     }
-    rb_destroy(rngbuff_rec);
-    rb_destroy(rngbuff_rec_dataout);
+    rb_destroy(g_ringbuf_rec);
 }

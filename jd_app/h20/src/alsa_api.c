@@ -39,14 +39,18 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
         loge("snd_pcm_hw_params_set_period_size error(%s)\n", snd_strerror(err));
         return err;
     }
-    logi("==== period_size=%lu, alsa_params.period_size=%lu\n", period_size, alsa_params.period_size);
+    if(period_size != alsa_params.period_size){
+        logi("==== period_size=%lu, alsa_params.period_size=%lu\n", period_size, alsa_params.period_size);
+    }
 
     snd_pcm_uframes_t buffer_size = alsa_params.buffer_size;
     if((err = snd_pcm_hw_params_set_buffer_size_near(ppcm, hw_params, &buffer_size)) < 0){
         loge("snd_pcm_hw_params_set_buffer_size error(%s)\n", snd_strerror(err));
         return err;
     }
-    logi("==== buffer_size=%lu, alsa_params.buffer_size=%lu\n", buffer_size, alsa_params.buffer_size);
+    if(buffer_size != alsa_params.buffer_size){
+        logi("==== buffer_size=%lu, alsa_params.buffer_size=%lu\n", buffer_size, alsa_params.buffer_size);
+    }
 
     if((err = snd_pcm_hw_params(ppcm, hw_params)) < 0){
         loge("snd_pcm_hw_params error(%s)\n", snd_strerror(err));
@@ -60,21 +64,29 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
     }
 
     if(alsa_params.stream == SND_PCM_STREAM_CAPTURE){
-        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, 0)) < 0){
+        int val;
+        val = 0;
+        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
-        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, alsa_params.buffer_size)) < 0){
+
+        val = buffer_size;
+        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
     }
     else if(alsa_params.stream == SND_PCM_STREAM_PLAYBACK){
-        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, alsa_params.period_size)) < 0){
+        int val;
+        val = period_size;
+        if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
-        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, alsa_params.buffer_size)) < 0){
+
+        val = buffer_size;
+        if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
@@ -199,105 +211,15 @@ int check_pcm_state(snd_pcm_t *ppcm, int state, const char *alias)
     return ret;
 }
 
-int alsa_cset(char *card, char *name, int value)
-{
-	int err;
-	char name_str[128] = {0};
-	char value_str[16];
-	static snd_ctl_t *handle = NULL;
-	snd_ctl_elem_info_t *info;
-	snd_ctl_elem_id_t *id;
-	snd_ctl_elem_value_t *control;
-	snd_ctl_elem_info_alloca(&info);
-	snd_ctl_elem_id_alloca(&id);
-	snd_ctl_elem_value_alloca(&control);
-
-	sprintf(name_str, "name='%s'", name);
-	sprintf(value_str, "%d", value);
-	logi("%s %s\n", name_str, value_str);
-	if ((err =snd_ctl_ascii_elem_id_parse(id, name_str)) < 0) {
-		fprintf(stderr, "Wrong control identifier: %s\n", name_str);
-		return err;
-	}
-
-	if (handle == NULL &&
-		(err = snd_ctl_open(&handle, card, 0)) < 0) {
-			loge("Control %s open error: %s\n", card, snd_strerror(err));
-			return err;
-	}
-
-	snd_ctl_elem_info_set_id(info, id);
-	if ((err = snd_ctl_elem_info(handle, info)) < 0) {
-		loge("Cannot find the given element from control %s\n", name_str);
-		snd_ctl_close(handle);
-		handle = NULL;
-		return err;
-	}
-
-	snd_ctl_elem_info_get_id(info, id);     /* FIXME: Remove it when hctl find works ok !!! */
-
-	snd_ctl_elem_value_set_id(control, id);
-	if ((err = snd_ctl_elem_read(handle, control)) < 0) {
-		loge("Cannot read the given element from control %s\n", name_str);
-		snd_ctl_close(handle);
-		handle = NULL;
-		return err;
-	}
-
-	err = snd_ctl_ascii_value_parse(handle, control, info, value_str);
-	if (err < 0) {
-		loge("Control %s parse error: %s\n", name_str, snd_strerror(err));
-		snd_ctl_close(handle);
-		handle = NULL;
-		return err;
-	}
-
-	if ((err = snd_ctl_elem_write(handle, control)) < 0) {
-		loge("Control %s element write error: %s\n", name_str, snd_strerror(err));
-		snd_ctl_close(handle);
-		handle = NULL;
-		return err;
-	}
-
-	snd_ctl_close(handle);
-	handle = NULL;
-	return 0;
-}
-
-
 int get_card_num(const char *name)
 {
 	if(!name){
 		logw("invalid name\n");
 		return -1;
 	}
-#if 0
-	FILE *fp;
-	int ret;
-	char buff[256];
-
-	sprintf(buff, "cat /proc/asound/cards | grep %s | grep ]: | awk '{print $1}'", name);
-	fp = popen(buff, "r");
-	if(fp == NULL){
-		printf("open %s fail\n", buff);
-		return -1;
-	}
-	memset(buff, 0, sizeof(buff));
-	fread(buff, 1, sizeof(buff), fp);
-	buff[strlen(buff)]=0;
-	ret = atoi(buff);
-
-	if(fp){
-		pclose(fp);
-		fp = NULL;
-	}
-
-    return ret;
-#else
-//The accepted formats for "string" are:
-//The index of the card (as listed in /proc/asound/cards), given as string
-//The ID of the card (as listed in /proc/asound/cards)
-//The control device name (like /dev/snd/controlC0)
+    //The accepted formats for "string" are:
+    //The index of the card (as listed in /proc/asound/cards), given as string
+    //The ID of the card (as listed in /proc/asound/cards)
+    //The control device name (like /dev/snd/controlC0)
     return snd_card_get_index(name);
-#endif
 }
