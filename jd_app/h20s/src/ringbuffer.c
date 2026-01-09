@@ -196,6 +196,36 @@ ssize_t rb_read(struct ringbuffer *rb, void *buf, size_t len)
     return rlen;
 }
 
+ssize_t rb_read_try(struct ringbuffer *rb, void *buf, size_t len)
+{
+    if (!rb) {
+        return -1;
+    }
+
+    rb_lock(rb);
+    size_t rlen = MIN(len, rb_get_space_used_internal(rb));
+
+    if ((rb->length - rb->start) < rlen) {
+        int half_tail = rb->length - rb->start;
+        memcpy(buf, rb_start_ptr(rb), half_tail);
+        // rb->start = (rb->start + half_tail) % rb->length;
+
+        int half_head = rlen - half_tail;
+        memcpy(buf+half_tail, rb_start_ptr(rb), half_head);
+        // rb->start = (rb->start + half_head) % rb->length;
+    } else {
+        memcpy(buf, rb_start_ptr(rb), rlen);
+        // rb->start = (rb->start + rlen) % rb->length;
+    }
+
+    // if ((rb->start == rb->end) || (rb_get_space_used_internal(rb) == 0)) {
+    //     rb->start = rb->end = 0;
+    // }
+
+    rb_unlock(rb);
+    return rlen;
+}
+
 void rb_cleanup(struct ringbuffer *rb)
 {
     if (!rb) {

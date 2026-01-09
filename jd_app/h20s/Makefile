@@ -2,11 +2,11 @@ SRC_DIR = src
 INC_DIR = include
 LIB_DIR = lib
 ETC_DIR = etc
-ALGO_LIB = $(LIB_DIR)/
+ALGO_LIB = $(LIB_DIR)/libjd_feedbackdestroy_h20s-20260109-22k.a
 RUN_ALGO_LIB_DIR = /oem
 
 USE_RK3308_CODEC = 0
-USE_DYNAMIC_LIB	= 1
+USE_DYNAMIC_LIB	= 0
 
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
 ifeq ($(USE_RK3308_CODEC), 1)
@@ -21,7 +21,7 @@ LDFLAGS = -lasound -lpthread -ldl -lm -lstdc++ $(ALGO_LIB) -L$(LIB_DIR)
 endif
 TARGET = jdapp
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
-APP_VERSION := V1.1
+APP_VERSION := V1.14
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))
@@ -55,7 +55,10 @@ endif
 .PHONY:clean pre_build
 
 pre_build:
-	@echo "\n$(BUILD_TIME)\n"
+ifneq ($(USE_DYNAMIC_LIB), 1)
+	@echo "\nalgo: 		$(ALGO_LIB)\n"
+endif
+	@echo "build-time:	$(BUILD_TIME)\n"
 	@echo "#define BUILD_TIME \"$(BUILD_TIME)\"" > include/build_time.h
 	@echo "app-version: $(APP_VERSION)\n"
 	@echo "#define APP_VERSION \"$(APP_VERSION)\"" > include/app_version.h

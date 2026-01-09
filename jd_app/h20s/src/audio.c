@@ -757,27 +757,14 @@ static int playback_task(void *arg)
                     rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[0]) >= bytess){
-                    rb_read(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
-                    if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess){
-                        smooth_data(tmpbuff[0], bytess/bytess_fmt);
-                        rb_write(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
-                    }
+                    rb_read_try(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
                 }
-                else{
-                    logi("playback left-chn, ringbuf-ao and ringbuf-fill no data!!!\n");
-                }
+
                 if(rb_get_space_used(g_ringbuf_ao[1]) >= bytess){
                     rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[1]) >= bytess){
-                    rb_read(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
-                    if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess){
-                        smooth_data(tmpbuff[1], bytess/bytess_fmt);
-                        rb_write(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
-                    }
-                }
-                else{
-                    logi("playback right-chn, ringbuf-ao and ringbuf-fill no data!!!\n");
+                    rb_read_try(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
                 }
                 
                 for(int i = 0; i < PLAYBACK_CHN; i++){

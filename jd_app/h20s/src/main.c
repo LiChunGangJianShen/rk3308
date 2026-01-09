@@ -72,6 +72,7 @@ int main(int argc, char **argv)
     if(audio_start() < 0){
         goto err_audio_start;
     }
+    logi("---- audio start success ----\n");
 
     unsigned char state = 0;
     init_led_run();
@@ -83,6 +84,7 @@ int main(int argc, char **argv)
 	
 	exit_led_run();
 
+    logi("---- audio stop ----\n");
 	audio_stop();
 err_audio_start:
 #if ENABLE_ALGO
