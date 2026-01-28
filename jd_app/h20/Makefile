@@ -51,7 +51,10 @@ endif
 .PHONY:clean pre_build
 
 pre_build:
-	@echo "\n$(BUILD_TIME)\n"
+ifneq ($(USE_DYNAMIC_LIB), 1)
+	@echo "\nalgo: 		$(ALGO_LIB)\n"
+endif
+	@echo "build-time:	$(BUILD_TIME)\n"
 	@echo "#define BUILD_TIME \"$(BUILD_TIME)\"" > include/build_time.h
 	@echo "app-version: $(APP_VERSION)\n"
 	@echo "#define APP_VERSION \"$(APP_VERSION)\"" > include/app_version.h

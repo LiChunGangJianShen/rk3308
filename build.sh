@@ -14,10 +14,10 @@ h20s_app=$TOP_DIR/jd_app/h20s
 m800_app=$TOP_DIR/jd_app/m800
 
 DEFCONFIG_ARRAY=(
-"h20			-build h20" \
-"h20_hs			-build h20-hs" \
-"h20s			-build h20s" \
-"m800			-build m800" \
+"h20            -build h20" \
+"h20s           -build h20s" \
+"h30            -build h30" \
+"m800           -build m800" \
 )
 
 
@@ -85,8 +85,8 @@ function choose_type()
 
 
 CPU_ARRAY=(
-"rk3308bs	--select rk3308bs"	\
-"rk3308hs	--select rk3308hs"	\
+"rk3308bs   --select rk3308bs"	\
+"rk3308hs   --select rk3308hs"	\
 )
 CPU_ARRAY_LEN=${#CPU_ARRAY[@]}
 CHOICE=0
@@ -159,8 +159,8 @@ function link_board_config()
 	fi
 	if [ $BUILD_TARGET == h20 ];then
 		ln -sf rk3308/BoardConfig-JD-H20.mk .BoardConfig.mk
-	elif [ $BUILD_TARGET == h20_hs ];then
-		ln -sf rk3308/BoardConfig-JD-H20-HS.mk .BoardConfig.mk
+	elif [ $BUILD_TARGET == h30 ];then
+		ln -sf rk3308/BoardConfig-JD-H30.mk .BoardConfig.mk
 	elif [ $BUILD_TARGET == h20s ];then
 		ln -sf rk3308/BoardConfig-JD-H20S.mk .BoardConfig.mk
 	elif [ $BUILD_TARGET == m800 ];then
@@ -243,7 +243,7 @@ done
 # build target
 #=========================
 export_variable_value
-if [[ $BUILD_TARGET == h20 || $BUILD_TARGET == h20_hs ]];then
+if [[ $BUILD_TARGET == h20 || $BUILD_TARGET == h30 ]];then
 	build_h20
 elif [ $BUILD_TARGET == h20s ];then
 	build_h20s
