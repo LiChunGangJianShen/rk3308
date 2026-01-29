@@ -599,12 +599,16 @@ static int capture_task(void *arg)
     int err,get_frames=0;
     snd_pcm_t *ppcm_capture = NULL;
     snd_pcm_state_t pcm_state;
+    snd_pcm_status_t *status;
+    snd_pcm_uframes_t status_avail, status_avail_max;
     int cnt = 0;
     int start_err = 0;
     audio_fmt_t capture_buff[PERIOD_SIZE][CAPTURE_CHN] = {0};
     snd_pcm_sframes_t avail_frames = 0;
     int bytess_buff = sizeof(capture_buff);
-    
+
+    snd_pcm_status_alloca(&status);
+
     prctl(PR_SET_NAME, capture_task_state.name);
     logi("---- proc %s start ----\n", capture_task_state.name);
 
@@ -657,6 +661,19 @@ static int capture_task(void *arg)
                 logd("err capture avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
                 check_pcm_state(ppcm_capture, avail_frames, "capture");
             }
+
+            err = snd_pcm_status(ppcm_capture, status);
+            if(err == 0){
+                pcm_state = snd_pcm_status_get_state(status);
+                status_avail = snd_pcm_status_get_avail(status);
+                status_avail_max = snd_pcm_status_get_avail_max(status);
+                if(pcm_state != SND_PCM_STATE_RUNNING && status_avail == 0 && status_avail_max == 0){
+                    logd("err capture state=%s, avail=%ld, avail_max=%ld\n", 
+                        snd_pcm_state_name(pcm_state), status_avail, status_avail_max);
+
+                    snd_pcm_start(ppcm_capture);
+                }
+            }
         }
 
         if(get_frames >= ALG_FRAMES){
@@ -682,7 +699,7 @@ static int playback_pcm_init(snd_pcm_t **pcm)
     alsa_api_para_t para;
 
     memset(&para, 0, sizeof(para));
-    para.block = SND_PCM_NONBLOCK;
+    para.block = 0;//SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_PLAYBACK;
     para.format = SND_PCM_FORMAT_S16_LE;
@@ -716,6 +733,7 @@ static int playback_task(void *arg)
     snd_pcm_sframes_t avail_frames;
     int bytess_fmt = sizeof(audio_fmt_t);
     int bytess = bytess_fmt*PERIOD_SIZE;
+    int try_fill[2] = {0};
 
     prctl(PR_SET_NAME, playback_task_state.name);
     logi("---- proc %s start ----\n", playback_task_state.name);
@@ -744,17 +762,27 @@ static int playback_task(void *arg)
                 memset(tmpbuff[0], 0, bytess);
                 memset(tmpbuff[1], 0, bytess);
                 if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
+                    if(rb_get_space_used(g_ringbuf_ao[0]) >= 2*bytess && try_fill[0] > 0){
+                        try_fill[0]--;
+                        rb_discard(g_ringbuf_ao[0], bytess);
+                    }
                     rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[0]) >= bytess){
                     rb_read_try(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
+                    try_fill[0]++;
                 }
 
                 if(rb_get_space_used(g_ringbuf_ao[1]) >= bytess){
+                    if(rb_get_space_used(g_ringbuf_ao[1]) >= 2*bytess && try_fill[1] > 0){
+                        try_fill[1]--;
+                        rb_discard(g_ringbuf_ao[1], bytess);
+                    }
                     rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[1]) >= bytess){
                     rb_read_try(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
+                    try_fill[1]++;
                 }
                 
                 for(int i = 0; i < PLAYBACK_CHN; i++){
@@ -795,6 +823,7 @@ static int alg_task(void *arg)
     int bytess_alg_frames = bytess*ALG_FRAMES;
     int bytess_capture_buff = bytess_alg_frames*CAPTURE_CHN;
     int bytess_rec_buff = bytess_alg_frames*REC_CHN;
+    // int used_len, discard_len;
 
     prctl(PR_SET_NAME, alg_task_state.name);
     logi("---- proc %s start ----\n", alg_task_state.name);
@@ -827,28 +856,58 @@ static int alg_task(void *arg)
         if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_ao[0]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_ao[0], discard_len);
+        // }
         rb_write(g_ringbuf_ao[0], out_data1, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[0], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_fill_data[0]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_fill_data[0], discard_len);
+        // }
         rb_write(g_ringbuf_fill_data[0], out_data1, bytess_alg_frames);
 #if TWO_OUT_DATA
         if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_ao[1]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_ao[1], discard_len);
+        // }
         rb_write(g_ringbuf_ao[1], out_data2, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_fill_data[1], discard_len);
+        // }
         rb_write(g_ringbuf_fill_data[1], out_data2, bytess_alg_frames);
 #else
         if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_ao[1]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_ao[1], discard_len);
+        // }
         rb_write(g_ringbuf_ao[1], out_data1, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
         }
+        // used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
+        // if(used_len > bytess_alg_frames){
+        //     discard_len = used_len - bytess_alg_frames;
+        //     rb_discard(g_ringbuf_fill_data[1], discard_len);
+        // }
         rb_write(g_ringbuf_fill_data[1], out_data1, bytess_alg_frames);
 #endif
         cost = check_time_increment_ms_f(tvbef, tvaft);
