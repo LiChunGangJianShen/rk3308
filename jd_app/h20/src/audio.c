@@ -66,6 +66,8 @@ static pthread_state_t serial_task_state;
 static int g_cur_fb_state = 1;
 static int g_noise_state = 0;
 static float g_eq[16] = {0.0};
+static int is_stable_system = 0;
+#define SYSTEM_STABLE_TIME  300 //s
 
 static void rec_start(void);
 static void rec_stop(void);
@@ -671,7 +673,7 @@ static int capture_task(void *arg)
                     logd("err capture state=%s, avail=%ld, avail_max=%ld\n", 
                         snd_pcm_state_name(pcm_state), status_avail, status_avail_max);
 
-                    snd_pcm_start(ppcm_capture);
+                    // snd_pcm_start(ppcm_capture);
                 }
             }
         }
@@ -724,7 +726,6 @@ static void smooth_data(audio_fmt_t *data, int len)
     } 
 }
 
-#define SYSTEM_STABLE_TIME  300 //s
 static int playback_task(void *arg)
 {
     int err;
@@ -764,20 +765,6 @@ static int playback_task(void *arg)
             if(avail_frames >= PERIOD_SIZE){
                 memset(tmpbuff[0], 0, bytess);
                 memset(tmpbuff[1], 0, bytess);
-                cur_time = time(NULL);
-                if(cur_time - start_time >= SYSTEM_STABLE_TIME){
-                    int used_len, discard_len;
-                    used_len = rb_get_space_used(g_ringbuf_ao[0]);
-                    if(used_len > bytess){
-                        discard_len = used_len - bytess;
-                        rb_discard(g_ringbuf_ao[0], discard_len);
-                    }
-                    used_len = rb_get_space_used(g_ringbuf_ao[1]);
-                    if(used_len > bytess){
-                        discard_len = used_len - bytess;
-                        rb_discard(g_ringbuf_ao[1], discard_len);
-                    }
-                }
                 if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
                     rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
                 }
@@ -802,6 +789,12 @@ static int playback_task(void *arg)
 			else if(avail_frames < 0){
                 logd("err playback avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
                 check_pcm_state(ppcm_playback, avail_frames, "playback");
+            }
+        }
+        if(!is_stable_system){
+            cur_time = time(NULL);
+            if(cur_time - start_time >= SYSTEM_STABLE_TIME){
+                is_stable_system = 1;
             }
         }
 
@@ -830,7 +823,7 @@ static int alg_task(void *arg)
     int bytess_alg_frames = bytess*ALG_FRAMES;
     int bytess_capture_buff = bytess_alg_frames*CAPTURE_CHN;
     int bytess_rec_buff = bytess_alg_frames*REC_CHN;
-    // int used_len, discard_len;
+    int used_len, discard_len;
 
     prctl(PR_SET_NAME, alg_task_state.name);
     logi("---- proc %s start ----\n", alg_task_state.name);
@@ -863,58 +856,70 @@ static int alg_task(void *arg)
         if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_ao[0]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_ao[0], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_ao[0]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_ao[0], discard_len);
+            }
+        }
         rb_write(g_ringbuf_ao[0], out_data1, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[0], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_fill_data[0]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_fill_data[0], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_fill_data[0]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_fill_data[0], discard_len);
+            }
+        }
         rb_write(g_ringbuf_fill_data[0], out_data1, bytess_alg_frames);
 #if TWO_OUT_DATA
         if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_ao[1]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_ao[1], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_ao[1]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_ao[1], discard_len);
+            }
+        }
         rb_write(g_ringbuf_ao[1], out_data2, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_fill_data[1], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_fill_data[1], discard_len);
+            }
+        }
         rb_write(g_ringbuf_fill_data[1], out_data2, bytess_alg_frames);
 #else
         if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_ao[1]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_ao[1], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_ao[1]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_ao[1], discard_len);
+            }
+        }
         rb_write(g_ringbuf_ao[1], out_data1, bytess_alg_frames);
         if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
             rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
         }
-        // used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
-        // if(used_len > bytess_alg_frames){
-        //     discard_len = used_len - bytess_alg_frames;
-        //     rb_discard(g_ringbuf_fill_data[1], discard_len);
-        // }
+        if(is_stable_system){
+            used_len = rb_get_space_used(g_ringbuf_fill_data[1]);
+            if(used_len > bytess_alg_frames){
+                discard_len = used_len - bytess_alg_frames;
+                rb_discard(g_ringbuf_fill_data[1], discard_len);
+            }
+        }
         rb_write(g_ringbuf_fill_data[1], out_data1, bytess_alg_frames);
 #endif
         cost = check_time_increment_ms_f(tvbef, tvaft);
