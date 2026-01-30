@@ -699,7 +699,7 @@ static int playback_pcm_init(snd_pcm_t **pcm)
     alsa_api_para_t para;
 
     memset(&para, 0, sizeof(para));
-    para.block = 0;//SND_PCM_NONBLOCK;
+    para.block = SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_PLAYBACK;
     para.format = SND_PCM_FORMAT_S16_LE;
@@ -724,6 +724,7 @@ static void smooth_data(audio_fmt_t *data, int len)
     } 
 }
 
+#define SYSTEM_STABLE_TIME  300 //s
 static int playback_task(void *arg)
 {
     int err;
@@ -733,7 +734,7 @@ static int playback_task(void *arg)
     snd_pcm_sframes_t avail_frames;
     int bytess_fmt = sizeof(audio_fmt_t);
     int bytess = bytess_fmt*PERIOD_SIZE;
-    int try_fill[2] = {0};
+    time_t start_time, cur_time;
 
     prctl(PR_SET_NAME, playback_task_state.name);
     logi("---- proc %s start ----\n", playback_task_state.name);
@@ -743,6 +744,8 @@ static int playback_task(void *arg)
         loge("playback pcm init failed\n");
         goto err_to_exit;
     }
+
+    start_time = time(NULL);
 
     while(1){
         if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
@@ -761,28 +764,32 @@ static int playback_task(void *arg)
             if(avail_frames >= PERIOD_SIZE){
                 memset(tmpbuff[0], 0, bytess);
                 memset(tmpbuff[1], 0, bytess);
-                if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
-                    if(rb_get_space_used(g_ringbuf_ao[0]) >= 2*bytess && try_fill[0] > 0){
-                        try_fill[0]--;
-                        rb_discard(g_ringbuf_ao[0], bytess);
+                cur_time = time(NULL);
+                if(cur_time - start_time >= SYSTEM_STABLE_TIME){
+                    int used_len, discard_len;
+                    used_len = rb_get_space_used(g_ringbuf_ao[0]);
+                    if(used_len > bytess){
+                        discard_len = used_len - bytess;
+                        rb_discard(g_ringbuf_ao[0], discard_len);
                     }
+                    used_len = rb_get_space_used(g_ringbuf_ao[1]);
+                    if(used_len > bytess){
+                        discard_len = used_len - bytess;
+                        rb_discard(g_ringbuf_ao[1], discard_len);
+                    }
+                }
+                if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
                     rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[0]) >= bytess){
                     rb_read_try(g_ringbuf_fill_data[0], tmpbuff[0], bytess);
-                    try_fill[0]++;
                 }
 
                 if(rb_get_space_used(g_ringbuf_ao[1]) >= bytess){
-                    if(rb_get_space_used(g_ringbuf_ao[1]) >= 2*bytess && try_fill[1] > 0){
-                        try_fill[1]--;
-                        rb_discard(g_ringbuf_ao[1], bytess);
-                    }
                     rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess);
                 }
                 else if(rb_get_space_used(g_ringbuf_fill_data[1]) >= bytess){
                     rb_read_try(g_ringbuf_fill_data[1], tmpbuff[1], bytess);
-                    try_fill[1]++;
                 }
                 
                 for(int i = 0; i < PLAYBACK_CHN; i++){
@@ -1246,11 +1253,11 @@ int audio_start()
     int ret = 0;
     int size;
 
-    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4 * CAPTURE_CHN;
+    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 2 * CAPTURE_CHN;
     for(int i = 0; i < alg_idx_max; i++){
         g_ringbuf_ai[i] = rb_create(size);
     }
-    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4;
+    size = sizeof(audio_fmt_t) * PERIOD_SIZE * 2;
     for(int i = 0; i < PLAYBACK_CHN; i++){
         g_ringbuf_ao[i] = rb_create(size);
     }
