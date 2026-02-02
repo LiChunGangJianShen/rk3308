@@ -19,6 +19,7 @@ extern "C" {
 #define UAC_PERIOD_SIZE 16
 #define LINE_PERIOD_SIZE    16
 #define ALGO_PERIOD_SIZE    48
+#define PERIODS 2
 #define MIC_CNT 7
 #define REF_CNT 1
 #define OUT_CNT 1

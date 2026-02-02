@@ -1028,7 +1028,7 @@ static int es7210_micboost1_setting_get(struct snd_kcontrol *kcontrol,
 {
 	u8 val = 0;
 	es7210_read(0x43, &val, i2c_clt1[0]);
-	ucontrol->value.integer.value[0] = val & 0xF;//修改，只显示[3:0] 的值，与set只设置[3:0]对应
+	ucontrol->value.integer.value[0] = val & 0xF;//锟睫改ｏ拷只锟斤拷示[3:0] 锟斤拷值锟斤拷锟斤拷set只锟斤拷锟斤拷[3:0]锟斤拷应
 	return 0;
 }
 

@@ -22,6 +22,7 @@ ringbuf_t *ringbuf_create(size_t size);
 void ringbuf_destroy(ringbuf_t *rb);
 size_t ringbuf_write(ringbuf_t *rb, const void *data, size_t len);
 size_t ringbuf_read(ringbuf_t *rb, void *data, size_t len);
+size_t ringbuf_read_try(ringbuf_t *rb, void *data, size_t len);
 size_t ringbuf_get_free(ringbuf_t *rb);
 size_t ringbuf_get_used(ringbuf_t *rb);
 void ringbuf_discard(ringbuf_t *rb, size_t len);

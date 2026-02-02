@@ -2,23 +2,24 @@
 #include "API.h"
 
 typedef char *(*ptr_ver)();
-typedef bool (*ptr_init1)(short *, int);
 typedef bool (*ptr_init)();
 typedef void (*ptr_close)();
-typedef int (*ptr_process1)(const short*, const short*, short*, const int);
-typedef int (*ptr_process2)(const short*, const short*, const int);
-typedef int (*ptr_process3)(const short*, const short*, const int);
+typedef void (*ptr_process1)(const short*, short*, short*);
+typedef void (*ptr_process2)(const short*, short*);
+typedef void (*ptr_process3)(const short*, short*);
+typedef bool (*ptr_eq_setup)(float*);
 
-ptr_ver algo_version = JD_M800V3_GetVersion;
-ptr_init1 algo_init1 = JD_M800V3_Init1;
-ptr_init algo_init2 = JD_M800V3_Init2;
-ptr_init algo_init3 = JD_M800V3_Init3;
-ptr_close algo_close1 = JD_M800V3_Delete1;
-ptr_close algo_close2 = JD_M800V3_Delete2;
-ptr_close algo_close3 = JD_M800V3_Delete3;
-ptr_process1 algo_process1 = JD_M800V3_Process1;
-ptr_process2 algo_process2 = JD_M800V3_Process2;
-ptr_process3 algo_process3 = JD_M800V3_Process3;
+ptr_ver algo_version = JD_MicArray_GetVersion;
+ptr_init algo_init1 = JD_MicArray_Init1;
+ptr_init algo_init2 = JD_MicArray_Init2;
+ptr_init algo_init3 = JD_MicArray_Init3;
+ptr_close algo_close1 = JD_MicArray_Close1;
+ptr_close algo_close2 = JD_MicArray_Close2;
+ptr_close algo_close3 = JD_MicArray_Close3;
+ptr_process1 algo_process1 = JD_MicArray_Process1;
+ptr_process2 algo_process2 = JD_MicArray_Process2;
+ptr_process3 algo_process3 = JD_MicArray_Process3;
+// ptr_eq_setup algo_set_eq = JD_MicArray_SetEQ;
 
 enum
 {
@@ -30,9 +31,7 @@ enum
 
 int algo_init()
 {
-    short addr_play = 0;
-    int num_play = 0;
-    if(algo_init1(&addr_play, num_play) == false){
+    if(algo_init1() == false){
         loge("---- algo 1 init failed----\n");
         return algo_err_1;
     }
@@ -74,17 +73,22 @@ char *check_algo_version()
     return algo_version();
 }
 
-int _algo_process1(const short* mic_data, const short* ref_data, short* out_data, const int nums)
+void _algo_process1(const short* mic_data, short* out_data, short* ref_data)
 {
-    return algo_process1(mic_data, ref_data, out_data, nums);
+    return algo_process1(mic_data, out_data, ref_data);
 }
 
-int _algo_process2(const short* mic_data, const short* ref_data, const int nums)
+void _algo_process2(const short* mic_data, short* ref_data)
 {
-    return algo_process2(mic_data, ref_data, nums);
+    return algo_process2(mic_data, ref_data);
 }
 
-int _algo_process3(const short* mic_data, const short* ref_data, const int nums)
+void _algo_process3(const short* mic_data, short* ref_data)
 {
-    return algo_process3(mic_data, ref_data, nums);
+    return algo_process3(mic_data, ref_data);
+}
+
+void _algo_set_eq(float *eq_val) 
+{ 
+    // algo_set_eq(eq_val); 
 }

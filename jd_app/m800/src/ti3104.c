@@ -8,29 +8,29 @@ typedef struct{
 
 static ti3104_ctrl_t ctrl[] = {
     {"De-emphasis Switch", 0},
-    {"ADC HPF Cut-off", 0},
+    {"ADC HPF Cut-off", 1},//高通滤波开启，0.0045xFs 可以滤掉直流信号，这个配置还能保留大多数低频信号
     {"PGA Capture Switch", 1},
 
     {"Left PGA Capture Volume", 0},
     {"Right PGA Capture Volume", 0},
 
-    {"Left PGA Mixer Mic2L Switch", 2},
+    {"Left PGA Mixer Mic2L Switch", 2},//0
     {"Left PGA Mixer Mic2R Switch", 0xf},
     {"Right PGA Mixer Mic2L Switch", 0xf},
-    {"Right PGA Mixer Mic2R Switch", 0xf},
+    {"Right PGA Mixer Mic2R Switch", 0xf},//0
 
     {"Left Line1L Mux", 0},
     {"Left PGA Mixer Line1L Switch", 0xf},
     {"Left PGA Mixer Line1R Switch", 0xf},
     {"Right Line1R Mux", 0},
     {"Right PGA Mixer Line1L Switch", 0xf},
-    {"Right PGA Mixer Line1R Switch", 1},
+    {"Right PGA Mixer Line1R Switch", 1},//0
 
     {"Left HPCOM Mux", 0},
     {"Right HPCOM Mux", 0},
     {"Left DAC Mux", 0},
     {"Right DAC Mux", 0},
-    {"PCM Playback Volume", 110},
+    {"PCM Playback Volume", 110},//127
 
     {"Left HP DAC Playback Volume", 118},
     {"Left HPCOM DAC Playback Volume", 118},

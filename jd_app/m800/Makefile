@@ -11,14 +11,14 @@ PLATFORM ?= RK3308
 CFLAGS = -D_GNU_SOURCE -Wall -O2 -I$(INC_DIR)
 
 ifeq ($(ENDLIB), 1)
-LDFLAGS = -Wl,-rpath,$(RADIR) -lVHDM800_16K_7MIC -lasound -lpthread -latomic -ldl -lm -lstdc++ -L$(LIB_DIR)
+LDFLAGS = -Wl,-rpath,$(RADIR) -lJDREINFORCE_16K -lasound -lpthread -latomic -ldl -lm -lstdc++ -L$(LIB_DIR)
 else
 LDFLAGS = -lasound -lpthread -latomic -ldl -lm -lstdc++ -L$(LIB_DIR)
 endif
 TARGET = $(PWD)/fs-overlay/usr/bin/jdapp
 
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
-APP_VERSION := V1.0.0
+APP_VERSION := V1.1.01
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(SRC_DIR)/%.o, $(notdir $(SRC)))
@@ -51,7 +51,7 @@ $(TARGET): $(OBJ)
 install:
 	@cp -rf $(PWD)/fs-overlay $(PWD)/../../buildroot/board/rockchip/rk3308/
 	@rm -rf $(PWD)/../../device/rockchip/rk3308/oem_m800/*.so
-	@cp -rf $(LIB_DIR)/libVHDM800_16K_7MIC.so $(PWD)/../../device/rockchip/rk3308/oem_m800/
+	@cp -rf $(LIB_DIR)/libJDREINFORCE_16K.so $(PWD)/../../device/rockchip/rk3308/oem_m800/
 pre_build:
 	@echo "\n$(BUILD_TIME)\n"
 	@echo "#define BUILD_TIME \"$(BUILD_TIME)\"" > include/build_time.h

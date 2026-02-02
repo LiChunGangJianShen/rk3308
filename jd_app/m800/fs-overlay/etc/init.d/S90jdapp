@@ -3,7 +3,9 @@
 case "$1" in
 	start)
 		if [ -f /data/jdapp ]; then
-			chmod +x /data/jdapp
+			if [ ! -x /data/jdapp ]; then
+				chmod +x /data/jdapp
+			fi
 			/data/jdapp verbose &
 		else
 			/usr/bin/jdapp &

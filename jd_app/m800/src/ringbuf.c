@@ -113,6 +113,35 @@ size_t ringbuf_read(ringbuf_t *rb, void *data, size_t len)
     return len;
 }
 
+size_t ringbuf_read_try(ringbuf_t *rb, void *data, size_t len)
+{
+    if(!rb || !data || len == 0)
+        return 0;
+    pthread_mutex_lock(&rb->mutex);
+    size_t used = ringbuf_used_space(rb);
+    if(len > used)
+        len = used;
+    if(len == 0){
+        pthread_mutex_unlock(&rb->mutex);
+        return 0;
+    }
+
+    unsigned char *dst = data;
+    size_t first_chunk = rb->size - rb->tail;
+    if(first_chunk >= len){
+        memcpy(dst, &rb->buffer[rb->tail], len);
+        // rb->tail = (rb->tail + len) % rb->size;
+    }
+    else{
+        memcpy(dst, &rb->buffer[rb->tail], first_chunk);
+        memcpy(dst + first_chunk, rb->buffer, len - first_chunk);
+        // rb->tail = len - first_chunk;
+    }
+    // rb->full = false;
+    pthread_mutex_unlock(&rb->mutex);
+    return len;
+}
+
 size_t ringbuf_get_free(ringbuf_t *rb)
 {
     if(!rb)

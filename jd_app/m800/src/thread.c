@@ -154,6 +154,7 @@ int create_thread(const char *name, int cpu_bind, int priority, thread_func run,
     if (cpu_bind < 0 || cpu_bind >= num_cores) {
         cpu_bind = 0;
     }
+    logd("---- thread %s bind-cpu=%d ----\n", name, cpu_bind);
 
     strncpy(thread_data->name, name, sizeof(thread_data->name)-1);
 

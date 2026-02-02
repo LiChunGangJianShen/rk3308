@@ -199,6 +199,7 @@ int alsa_cset(const char *card, const char *name, int val)
     int err = 0;
     snd_ctl_elem_id_t *id;
     snd_ctl_elem_value_t *control;
+    snd_ctl_elem_info_t *info;
 
     if(!card || !name)
         return -1;
@@ -212,15 +213,30 @@ int alsa_cset(const char *card, const char *name, int val)
 
     snd_ctl_elem_id_alloca(&id);
     snd_ctl_elem_value_alloca(&control);
+    snd_ctl_elem_info_alloca(&info);
 
     snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
     snd_ctl_elem_id_set_name(id, name);
     snd_ctl_elem_id_set_index(id, 0);
-
     snd_ctl_elem_value_set_id(control, id);
-    snd_ctl_elem_value_set_integer(control, 0, val);
 
-    err = snd_ctl_elem_write(handle, control);
+    snd_ctl_elem_info_set_id(info, id);
+    if ((err = snd_ctl_elem_info(handle, info)) < 0) {
+        loge("snd_ctl_elem_info error(%s)\n", snd_strerror(err));
+        snd_ctl_close(handle);
+        return err;
+    }
+
+    unsigned int count = snd_ctl_elem_info_get_count(info);
+    for (unsigned int i = 0; i < count; i++) {
+        snd_ctl_elem_value_set_integer(control, i, val);
+    }
+
+    if ((err = snd_ctl_elem_write(handle, control)) < 0) {
+        loge("snd_ctl_elem_write error(%s)\n", snd_strerror(err));
+        snd_ctl_close(handle);
+        return err;
+    }
 
     snd_ctl_close(handle);
 

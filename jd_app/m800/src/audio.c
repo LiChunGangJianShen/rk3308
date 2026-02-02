@@ -17,6 +17,7 @@
 #include "es7210.h"
 #include "ti3104.h"
 #include "out_ctrl.h"
+#include "eq.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -215,7 +216,7 @@ static int pcm_params_setup(
         }
     }
     else{
-        val = *buffer_size;
+        val = *period_size+1;
         ret = snd_pcm_sw_params_set_start_threshold(pcm, sw_params, val);
         if(ret < 0){
             loge("(%s:%s)snd_pcm_sw_params_set_start_threshold(%d) error(%s)\n", 
@@ -252,12 +253,12 @@ static int mic_pcm_init(snd_pcm_t **pcm)
     snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
     snd_pcm_access_t format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_uframes_t period_size = MIC_PERIOD_SIZE;
-    snd_pcm_uframes_t buffer_size = 2 * period_size;
+    snd_pcm_uframes_t buffer_size = PERIODS * period_size;
     unsigned int rate = SAMPLE_RATE;
 
     snprintf(name, sizeof(name), "hw:%d,0", snd_card_get_index(g_mic_card_id));
     name[sizeof(name) - 1] = '\0';
-    // open_mode = SND_PCM_NONBLOCK;
+    open_mode = SND_PCM_NONBLOCK;
     ret = snd_pcm_open(pcm, name, stream, open_mode);
     if(ret < 0){
         loge("(%s:%s)snd_pcm_open error(%s)\n", 
@@ -294,7 +295,7 @@ static int line_ref_pcm_init(snd_pcm_t **pcm)
     snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
     snd_pcm_access_t format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_uframes_t period_size = LINE_PERIOD_SIZE;
-    snd_pcm_uframes_t buffer_size = 2 * period_size;
+    snd_pcm_uframes_t buffer_size = PERIODS * period_size;
     unsigned int rate = SAMPLE_RATE;
 
     snprintf(name, sizeof(name), "hw:%d,0", snd_card_get_index(g_line_card_id));
@@ -337,7 +338,7 @@ static int uac_ao_pcm_init(snd_pcm_t **pcm)
     snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
     snd_pcm_access_t format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_uframes_t period_size = UAC_PERIOD_SIZE;
-    snd_pcm_uframes_t buffer_size = 2 * period_size;
+    snd_pcm_uframes_t buffer_size = PERIODS * period_size;
     unsigned int rate = SAMPLE_RATE;
 
     snprintf(name, sizeof(name), "hw:%d,0", snd_card_get_index(g_uac_card_id));
@@ -380,7 +381,7 @@ static int line_ao_pcm_init(snd_pcm_t **pcm)
     snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
     snd_pcm_access_t format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_uframes_t period_size = LINE_PERIOD_SIZE;
-    snd_pcm_uframes_t buffer_size = 2 * period_size;
+    snd_pcm_uframes_t buffer_size = PERIODS * period_size;
     unsigned int rate = SAMPLE_RATE;
 
     snprintf(name, sizeof(name), "hw:%d,0", snd_card_get_index(g_line_card_id));
@@ -530,10 +531,16 @@ static ringbuf_t *ringbuf_init(int size, const char *aliases)
 static int mic_task(void *arg)
 {
     snd_pcm_t *pcm = NULL;
+    snd_pcm_t *pcm_play = NULL;
     int ret = 0, total_get = 0;
     int bytess = sizeof(fmt_t) * MIC_CHN;
     fmt_t buf[MIC_PERIOD_SIZE][MIC_CHN] = {0};
+    fmt_t buf_out[LINE_PERIOD_SIZE][LINE_AO_CHN] = {0};
+    fmt_t buftmp[LINE_PERIOD_SIZE] = {0};
     snd_pcm_sframes_t avail;
+    int bytess_buftmp = sizeof(buftmp);
+    int start_play = 0;
+    int play_delay = 0;
 
     prctl(PR_SET_NAME, g_mic_task_state.name);
     logi("---- proc %s start ----\n", g_mic_task_state.name);
@@ -544,7 +551,15 @@ static int mic_task(void *arg)
         task_destroy(&g_mic_task_state);
     }
 
+    ret = line_ao_pcm_init(&pcm_play);
+    if(ret < 0){
+        loge("%s init line-out pcm error\n", g_mic_task_state.name);
+        task_destroy(&g_mic_task_state);
+    }
+
     pcm_start(pcm, g_mic_card_id);
+    enable_aec_out();
+    enable_spk_out();
 
     while(g_mic_task_state.running){
         avail = snd_pcm_avail_update(pcm);
@@ -573,10 +588,10 @@ static int mic_task(void *arg)
             ret = snd_pcm_readi(pcm, buf, MIC_PERIOD_SIZE);
             if(ret > 0){
                 for (int i = 0; i < algo_max; i++){
-                    if (ringbuf_get_free(g_ringbuf_mic[i]) < (bytess * ret))
-                    {
-                        ringbuf_discard(g_ringbuf_mic[i], (bytess * ret));
-                    }
+                    // if (ringbuf_get_free(g_ringbuf_mic[i]) < (bytess * ret))
+                    // {
+                    //     ringbuf_discard(g_ringbuf_mic[i], (bytess * ret));
+                    // }
                     ringbuf_write(g_ringbuf_mic[i], buf, (bytess * ret));
                 }
 
@@ -612,10 +627,34 @@ static int mic_task(void *arg)
             }
         }
 
+        avail = snd_pcm_avail_update(pcm_play);
+        if(avail < 0){
+            check_and_recover_pcm(pcm_play, avail, "LINEAO");
+        }
+        else if(avail >= LINE_PERIOD_SIZE){
+            if(ringbuf_get_used(g_ringbuf_line_ao) >= bytess_buftmp){
+                ringbuf_read(g_ringbuf_line_ao, buftmp, bytess_buftmp);
+            }
+
+            for (int i = 0; i < LINE_PERIOD_SIZE; i++){
+                buf_out[i][0] = buftmp[i];
+                buf_out[i][1] = buftmp[i];
+            }
+
+            ret = snd_pcm_writei(pcm_play, buf_out, LINE_PERIOD_SIZE);
+            if(ret < 0){
+                check_and_recover_pcm(pcm_play, ret, "LINEAO");
+            }
+        }
+
         delay_us(100);
     }
 
     safe_cap_pcm_close(&pcm);
+    safe_play_pcm_close(&pcm_play);
+
+    disable_aec_out();
+    disable_spk_out();
 
     logi("---- proc %s stop ----\n", g_mic_task_state.name);
     return 0;
@@ -681,10 +720,10 @@ static int line_ai_task(void *arg)
                     buftmp[i] = buf[i][0];
                 }
                 for (int i = 0; i < algo_max; i++){
-                    if (ringbuf_get_free(g_ringbuf_line_ref[i]) < (bytess * ret))
-                    {
-                        ringbuf_discard(g_ringbuf_line_ref[i], (bytess * ret));
-                    }
+                    // if (ringbuf_get_free(g_ringbuf_line_ref[i]) < (bytess * ret))
+                    // {
+                    //     ringbuf_discard(g_ringbuf_line_ref[i], (bytess * ret));
+                    // }
                     ringbuf_write(g_ringbuf_line_ref[i], buftmp, (bytess * ret));
                 }
             }
@@ -914,6 +953,7 @@ static void smooth_data(fmt_t *data, int len)
         data[i] = (fmt_t)(data[source_idx] * factor);
     } 
 }
+#define SYSTEM_STABLE_TIME  120 //s
 static int line_ao_task(void *arg)
 {
     snd_pcm_t *pcm = NULL;
@@ -923,7 +963,9 @@ static int line_ao_task(void *arg)
     int bytess_buf = sizeof(buf);
     int bytess_buftmp = sizeof(buftmp);
     int bytess = sizeof(fmt_t);
+    int try_fill = 0;
     snd_pcm_sframes_t avail;
+    time_t start_time, cur_time;
 
     prctl(PR_SET_NAME, g_line_ao_task_state.name);
     logi("---- proc %s start ----\n", g_line_ao_task_state.name);
@@ -947,6 +989,7 @@ static int line_ao_task(void *arg)
 
     enable_aec_out();
     enable_spk_out();
+    start_time = time(NULL);
 
     while(g_line_ao_task_state.running){
         avail = snd_pcm_avail_update(pcm);
@@ -972,20 +1015,12 @@ static int line_ao_task(void *arg)
             #endif
         }
         else if(avail >= LINE_PERIOD_SIZE){
-            memset(buf, 0, bytess_buf);
-            memset(buftmp, 0, bytess_buftmp);
             if(ringbuf_get_used(g_ringbuf_line_ao) >= bytess_buftmp){
                 ringbuf_read(g_ringbuf_line_ao, buftmp, bytess_buftmp);
             }
-            else if(ringbuf_get_used(g_ringbuf_fill_data) >= bytess_buftmp){
-                ringbuf_read(g_ringbuf_fill_data, buftmp, bytess_buftmp);
-                if(ringbuf_get_free(g_ringbuf_fill_data) < bytess_buftmp){
-                    smooth_data(buftmp, bytess_buftmp/bytess);
-                    ringbuf_write(g_ringbuf_fill_data, buftmp, bytess_buftmp);
-                }
-            }
             else{
-                logi("out ringbuf and fill data ringbuf no data !!!\n");
+                ringbuf_read_try(g_ringbuf_fill_data, buftmp, bytess_buftmp);
+                logd("put fill data(%d)\n", try_fill);
             }
 
             for (int i = 0; i < LINE_PERIOD_SIZE; i++){
@@ -1034,6 +1069,7 @@ static int algo1_task(void *arg)
     struct timeval tvbef, tvaft, tvcur, tvlast;
     unsigned long time_out_cnt = 0;
 	double cost = 0, cost_max = 0, last_cost_max = 0;
+    int algo_mic_idx[MIC_CNT] = {2, 6, 4, 5, 3, 1, 0};
     fmt_t rec[ALGO_PERIOD_SIZE][REC_CHN] = {0};
     fmt_t micin[ALGO_PERIOD_SIZE][MIC_CHN] = {0};
     fmt_t mic[MIC_CNT][ALGO_PERIOD_SIZE] = {0};
@@ -1044,6 +1080,7 @@ static int algo1_task(void *arg)
     int bytess_out = sizeof(out);
     int bytess_rec = sizeof(rec);
     int bytess = sizeof(fmt_t);
+    int used_len, discard_len;
 
     prctl(PR_SET_NAME, g_algo1_task_state.name);
     logi("---- proc %s start ----\n", g_algo1_task_state.name);
@@ -1060,7 +1097,7 @@ static int algo1_task(void *arg)
         ringbuf_read(g_ringbuf_mic[algo_1], micin, bytess_mic);
         for (int i = 0; i < MIC_CNT; i++){
             for (int j = 0; j < ALGO_PERIOD_SIZE; j++){
-                mic[i][j] = micin[j][i];
+                mic[i][j] = micin[j][algo_mic_idx[i]];
             }
         }
 
@@ -1070,13 +1107,19 @@ static int algo1_task(void *arg)
 
         gettimeofday(&tvbef, NULL);
 #if EN_ALGO
-        _algo_process1((short *)mic, (short *)ref, (short *)out, ALGO_PERIOD_SIZE);
+        _algo_process1((short *)mic, (short *)out, (short *)ref);
 #else
         for (int j = 0; j < ALGO_PERIOD_SIZE; j++){
             out[j] = mic[0][j] + mic[1][j] + mic[2][j] + mic[3][j] + mic[4][j] + mic[5][j] + mic[6][j];
         }
 #endif
         gettimeofday(&tvaft, NULL);
+        
+        // if(ringbuf_get_free(g_ringbuf_fill_data) < bytess_out){
+        //     ringbuf_discard(g_ringbuf_fill_data, bytess_out);
+        // }
+        // ringbuf_write(g_ringbuf_fill_data, out, bytess_out);
+        
 #if EN_UAC
         if(ringbuf_get_free(g_ringbuf_uac_ao) < bytess_out){
             ringbuf_discard(g_ringbuf_uac_ao, bytess_out);
@@ -1084,15 +1127,10 @@ static int algo1_task(void *arg)
         ringbuf_write(g_ringbuf_uac_ao, out, bytess_out);
 #endif
 
-        if(ringbuf_get_free(g_ringbuf_line_ao) < bytess_out){
-            ringbuf_discard(g_ringbuf_line_ao, bytess_out);
-        }
+        // if(ringbuf_get_free(g_ringbuf_line_ao) < bytess_out){
+        //     ringbuf_discard(g_ringbuf_line_ao, bytess_out);
+        // }
         ringbuf_write(g_ringbuf_line_ao, out, bytess_out);
-
-        if(ringbuf_get_free(g_ringbuf_fill_data) < bytess_out){
-            ringbuf_discard(g_ringbuf_fill_data, bytess_out);
-        }
-        ringbuf_write(g_ringbuf_fill_data, out, bytess_out);
 
         cost = check_time_increment_ms_f(tvbef, tvaft);
         if(cost > cost_max){
@@ -1100,16 +1138,16 @@ static int algo1_task(void *arg)
         }
         if(cost_max > ALGO_TIME_MS){
             time_out_cnt++;
-            if(cost_max > last_cost_max){
-                double delay = cost_max - ALGO_TIME_MS;
-                int delay_sample = (int)round(delay * SAMPLE_PER_MS_FLOAT);//四舍五入
-                int bytess_delay = bytess * delay_sample;
-                last_cost_max = cost_max;
-                if(ringbuf_get_free(g_ringbuf_line_ao) < bytess_delay){
-                    ringbuf_discard(g_ringbuf_line_ao, bytess_delay);
-                }
-                ringbuf_write(g_ringbuf_line_ao, out, bytess_delay);
-            }
+            // if(cost_max > last_cost_max){
+            //     double delay = cost_max - ALGO_TIME_MS;
+            //     int delay_sample = (int)round(delay * SAMPLE_PER_MS_FLOAT);//四舍五入
+            //     int bytess_delay = bytess * delay_sample;
+            //     last_cost_max = cost_max;
+            //     if(ringbuf_get_free(g_ringbuf_line_ao) < bytess_delay){
+            //         ringbuf_discard(g_ringbuf_line_ao, bytess_delay);
+            //     }
+            //     ringbuf_write(g_ringbuf_line_ao, out, bytess_delay);
+            // }
         }
         gettimeofday(&tvcur, NULL);
         if(check_time_increment_s(tvlast, tvcur) >= 3){
@@ -1128,7 +1166,7 @@ static int algo1_task(void *arg)
         if(atomic_load(&g_record_action) == algo_record_cmd_start){
             for (int i = 0; i < MIC_CNT; i++){
                 for (int j = 0; j < ALGO_PERIOD_SIZE; j++){
-                    rec[j][i] = micin[j][i];
+                    rec[j][i] = micin[j][algo_mic_idx[i]];
                 }
             }
             for (int j = 0; j < ALGO_PERIOD_SIZE; j++){
@@ -1136,9 +1174,9 @@ static int algo1_task(void *arg)
                 rec[j][rec_out] = out[j];
             }
 
-            if(ringbuf_get_free(g_ringbuf_rec) >= bytess_rec){
+            // if(ringbuf_get_free(g_ringbuf_rec) >= bytess_rec){
                 ringbuf_write(g_ringbuf_rec, rec, bytess_rec);
-            }
+            // }
         }
 
         delay_us(100);
@@ -1184,7 +1222,7 @@ static int algo2_task(void *arg)
 
         gettimeofday(&tvbef, NULL);
 #if EN_ALGO
-        _algo_process2((short *)mic, (short *)ref, ALGO_PERIOD_SIZE);
+        _algo_process2((short *)mic, (short *)ref);
 #endif
         gettimeofday(&tvaft, NULL);
         
@@ -1252,7 +1290,7 @@ static int algo3_task(void *arg)
 
         gettimeofday(&tvbef, NULL);
 #if EN_ALGO
-        _algo_process3((short *)mic, (short *)ref, ALGO_PERIOD_SIZE);
+        _algo_process3((short *)mic, (short *)ref);
 #endif
         gettimeofday(&tvaft, NULL);
         
@@ -1437,28 +1475,55 @@ int audio_start()
     sprintf(name, "hw:%s", g_mic_card_id);
     es7210_ctrl(name);
 
+    algo_eq_init();
+    // float eq_val[EQ_BAND] = {0.0};
+    // check_eq(eq_val, EQ_BAND);
+    // for(int i = 0; i < EQ_BAND; i++){
+    //     logi("cur eq[%d]: %.2f dB\n", i+1, eq_val[i]);
+    // }
+
     for (int i = 0; i < algo_max; i++){
         sem_init(&g_sem_algo[i], 0, 0);
     }
 
-    size = sizeof(fmt_t) * MIC_CHN * ALGO_PERIOD_SIZE * 4;
+    if(MIC_PERIOD_SIZE >= ALGO_PERIOD_SIZE){
+        size = sizeof(fmt_t) * MIC_CHN * ALGO_PERIOD_SIZE * 2;
+    }
+    else{
+        size = sizeof(fmt_t) * MIC_CHN * MIC_PERIOD_SIZE * 4;
+    }
     for (int i = 0; i < algo_max; i++){
         g_ringbuf_mic[i] = ringbuf_init(size, "mic");
     }
 
-    size = sizeof(fmt_t) * LINE_PERIOD_SIZE * 4;
+    if(LINE_PERIOD_SIZE >= ALGO_PERIOD_SIZE){
+        size = sizeof(fmt_t) * ALGO_PERIOD_SIZE * 2;
+    }
+    else{
+        size = sizeof(fmt_t) * LINE_PERIOD_SIZE * 4;
+    }
     for (int i = 0; i < algo_max; i++){
         g_ringbuf_line_ref[i] = ringbuf_init(size, "line_ref");
     }
 
 #if EN_UAC
-    size = sizeof(fmt_t) * UAC_PEALGO_PERIOD_SIZEIOD_SIZE * 4;
+    if(UAC_PERIOD_SIZE >= ALGO_PERIOD_SIZE){
+        size = sizeof(fmt_t) * ALGO_PERIOD_SIZE * 2;
+    }
+    else{
+        size = sizeof(fmt_t) * UAC_PERIOD_SIZE * 4;
+    }
     g_ringbuf_uac_ao = ringbuf_init(size, "uac_ao");
 #endif
-    size = sizeof(fmt_t) * ALGO_PERIOD_SIZE * 4;
+    if(LINE_PERIOD_SIZE >= ALGO_PERIOD_SIZE){
+        size = sizeof(fmt_t) * ALGO_PERIOD_SIZE * 2;
+    }
+    else{
+        size = sizeof(fmt_t) * LINE_PERIOD_SIZE * 4;
+    }
     g_ringbuf_line_ao = ringbuf_init(size, "line_ao");
 
-    size = sizeof(fmt_t) * ALGO_PERIOD_SIZE * 2;
+    size = sizeof(fmt_t) * ALGO_PERIOD_SIZE;
     g_ringbuf_fill_data = ringbuf_init(size, "fill_data");
 
     size = sizeof(fmt_t) * REC_CHN * SAMPLE_RATE * 2;
@@ -1500,11 +1565,11 @@ int audio_start()
         goto uao_error;
     }
 #endif
-    ret = task_init(CPU0, 70, "line_ao", &g_line_ao_task_state, line_ao_task);
-    if(ret != 0){
-        loge("create line ao task error\n");
-        goto line_error;
-    }
+    // ret = task_init(CPU0, 70, "line_ao", &g_line_ao_task_state, line_ao_task);
+    // if(ret != 0){
+    //     loge("create line ao task error\n");
+    //     goto line_error;
+    // }
 
     ret = task_init(CPU0, 60, "rec", &g_rec_task_state, rec_task);
     if(ret != 0){
@@ -1525,8 +1590,8 @@ int audio_start()
 event_error:
     task_destroy(&g_rec_task_state);
 rec_error:
-    task_destroy(&g_line_ao_task_state);
-line_error:
+//     task_destroy(&g_line_ao_task_state);
+// line_error:
 #if EN_UAC
     task_destroy(&g_uac_ao_task_state);
 uao_error:
@@ -1569,8 +1634,9 @@ algo1_error:
 
 void audio_stop()
 {
+    task_destroy(&g_line_ai_task_state);
     task_destroy(&g_rec_task_state);
-    task_destroy(&g_line_ao_task_state);
+    // task_destroy(&g_line_ao_task_state);
 #if EN_UAC
     task_destroy(&g_uac_ao_task_state);
 #endif
@@ -1578,7 +1644,6 @@ void audio_stop()
     task_destroy(&g_algo2_task_state);
     task_destroy(&g_algo3_task_state);
     task_destroy(&g_mic_task_state);
-    task_destroy(&g_line_ai_task_state);
     destroy_event_listen();
 
     for (int i = 0; i < algo_max; i++){
