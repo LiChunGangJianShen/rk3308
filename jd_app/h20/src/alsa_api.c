@@ -71,7 +71,15 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
             return err;
         }
 
-        val = buffer_size;
+        if(buffer_size == 32){
+            val = 64;
+        }
+        else if(buffer_size == 96){
+            val = 128;
+        }
+        else{
+            val = buffer_size;
+        }
         if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
@@ -79,13 +87,21 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
     }
     else if(alsa_params.stream == SND_PCM_STREAM_PLAYBACK){
         int val;
-        val = period_size;
+        val = 0;
         if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
 
-        val = buffer_size;
+        if(buffer_size == 32){
+            val = 64;
+        }
+        else if(buffer_size == 96){
+            val = 128;
+        }
+        else{
+            val = buffer_size;
+        }
         if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
@@ -222,4 +238,26 @@ int get_card_num(const char *name)
     //The ID of the card (as listed in /proc/asound/cards)
     //The control device name (like /dev/snd/controlC0)
     return snd_card_get_index(name);
+}
+
+void safe_capture_pcm_close(snd_pcm_t **pcm)
+{
+    if(pcm == NULL || *pcm == NULL){
+        return;
+    }
+
+    snd_pcm_drop(*pcm);
+    snd_pcm_close(*pcm);
+    *pcm = NULL;
+}
+
+void safe_playback_pcm_close(snd_pcm_t **pcm)
+{
+    if(pcm == NULL || *pcm == NULL){
+        return;
+    }
+
+    snd_pcm_drain(*pcm);
+    snd_pcm_close(*pcm);
+    *pcm = NULL;
 }

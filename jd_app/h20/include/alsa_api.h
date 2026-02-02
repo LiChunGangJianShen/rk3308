@@ -27,6 +27,8 @@ int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
 int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
 int check_pcm_state(snd_pcm_t *ppcm, int state, const char *alias);
 int get_card_num(const char *name);
+void safe_capture_pcm_close(snd_pcm_t **pcm);
+void safe_playback_pcm_close(snd_pcm_t **pcm);
 
 #ifdef __cplusplus
 }

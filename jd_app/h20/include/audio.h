@@ -9,7 +9,7 @@ extern "C" {
 #define TWO_OUT_DATA    0
 #define EN_REC_WAV_FILE	0
 #define SAMPLE_RATE     22050
-#define PERIOD_SIZE     48
+#define PERIOD_SIZE     16
 #define PERIODS         2
 #define ALG_FRAMES      48
 #define CAPTURE_CHN     2
