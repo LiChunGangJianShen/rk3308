@@ -199,7 +199,7 @@ static int pcm_params_setup(
 
     int val = 0;
     if(stream == SND_PCM_STREAM_CAPTURE){
-        val = 1;
+        val = 0;
         ret = snd_pcm_sw_params_set_start_threshold(pcm, sw_params, val);
         if(ret < 0){
             loge("(%s:%s)snd_pcm_sw_params_set_start_threshold(%d) error(%s)\n", 
@@ -207,7 +207,15 @@ static int pcm_params_setup(
             goto __error;
         }
 
-        val = *buffer_size;
+        if(*buffer_size == 32){
+            val = 64;
+        }
+        else if(*buffer_size == 96){
+            val = 128;
+        }
+        else{
+            val = *buffer_size;
+        }
         ret = snd_pcm_sw_params_set_stop_threshold(pcm, sw_params, val);
         if(ret < 0){
             loge("(%s:%s)snd_pcm_sw_params_set_stop_threshold(%d) error(%s)\n", 
@@ -216,7 +224,7 @@ static int pcm_params_setup(
         }
     }
     else{
-        val = *period_size+1;
+        val = 0;//*period_size + 1;
         ret = snd_pcm_sw_params_set_start_threshold(pcm, sw_params, val);
         if(ret < 0){
             loge("(%s:%s)snd_pcm_sw_params_set_start_threshold(%d) error(%s)\n", 
@@ -224,7 +232,15 @@ static int pcm_params_setup(
             goto __error;
         }
 
-        val = *buffer_size;
+        if(*buffer_size == 32){
+            val = 64;
+        }
+        else if(*buffer_size == 96){
+            val = 128;
+        }
+        else{
+            val = *buffer_size;
+        }
         ret = snd_pcm_sw_params_set_stop_threshold(pcm, sw_params, val);
         if(ret < 0){
             loge("(%s:%s)snd_pcm_sw_params_set_stop_threshold(%d) error(%s)\n", 
