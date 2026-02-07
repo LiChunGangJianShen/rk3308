@@ -610,9 +610,13 @@ static int capture_task(void *arg)
     int per_sample_time = (int)(1000000.0f / SAMPLE_RATE + 0.5f);
     //int bytess_buff = sizeof(capture_buff);
     int bytess_act = sizeof(audio_fmt_t) * CAPTURE_CHN;
+    snd_pcm_status_t *status;
+    snd_pcm_uframes_t status_avail, status_avail_max;
 	
     prctl(PR_SET_NAME, capture_task_state.name);
     logi("---- proc %s start ----\n", capture_task_state.name);
+
+    snd_pcm_status_alloca(&status);
 
     err = capture_pcm_init(&ppcm_capture);
     if(err < 0){
@@ -691,6 +695,19 @@ static int capture_task(void *arg)
             num_remain -= ALG_FRAMES;
             for(int i = 0; i < alg_idx_max; i++){
                 sem_post(&g_sem_3a[i]);
+            }
+        }
+
+        err = snd_pcm_status(ppcm_capture, status);
+        if(err == 0){
+            pcm_state = snd_pcm_status_get_state(status);
+            status_avail = snd_pcm_status_get_avail(status);
+            status_avail_max = snd_pcm_status_get_avail_max(status);
+            if(pcm_state != SND_PCM_STATE_RUNNING && status_avail == 0 && status_avail_max == 0){
+                logd("err capture state=%s, avail=%ld, avail_max=%ld\n", 
+                    snd_pcm_state_name(pcm_state), status_avail, status_avail_max);
+
+                snd_pcm_start(ppcm_capture);
             }
         }
 		
