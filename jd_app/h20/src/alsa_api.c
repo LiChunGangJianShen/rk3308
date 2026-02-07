@@ -71,15 +71,7 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
             return err;
         }
 
-        if(buffer_size == 32){
-            val = 64;
-        }
-        else if(buffer_size == 96){
-            val = 128;
-        }
-        else{
-            val = buffer_size;
-        }
+        val = buffer_size;
         if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
@@ -87,21 +79,13 @@ static int set_pcm_params(snd_pcm_t *ppcm, alsa_api_para_t alsa_params)
     }
     else if(alsa_params.stream == SND_PCM_STREAM_PLAYBACK){
         int val;
-        val = 0;
+        val = period_size+1;
         if((err = snd_pcm_sw_params_set_start_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_start_threshold error(%s)\n", snd_strerror(err));
             return err;
         }
 
-        if(buffer_size == 32){
-            val = 64;
-        }
-        else if(buffer_size == 96){
-            val = 128;
-        }
-        else{
-            val = buffer_size;
-        }
+        val = buffer_size;
         if((err = snd_pcm_sw_params_set_stop_threshold(ppcm, sw_params, val)) < 0){
             loge("snd_pcm_sw_params_set_stop_threshold error(%s)\n", snd_strerror(err));
             return err;
@@ -160,10 +144,12 @@ static int xrun_recovery(snd_pcm_t *ppcm, int err)
     return err;
 }
 
-int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
+int pcm_in(snd_pcm_t *ppcm, void *buf, int size, int ch, const char *card_name)
 {
     int err = 0;
     int expect = size;
+    int per_frame_size = ch * 2;
+    int get = 0;
 
     while(expect){
         err = snd_pcm_readi(ppcm, buf, expect);
@@ -173,16 +159,20 @@ int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
         }
         else{
             expect -= err;
+            get += err;
+            buf = (char *)buf + err * per_frame_size;
         }
     }
 
-    return err;
+    return get;
 }
 
-int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
+int pcm_out(snd_pcm_t *ppcm, void *buf, int size, int ch, const char *card_name)
 {
     int err = 0;
     int expect = size;
+    int per_frame_size = ch * 2;
+    int put = 0;
 
     while(expect){
         err = snd_pcm_writei(ppcm, buf, expect);
@@ -192,10 +182,12 @@ int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name)
         }
         else{
             expect -= err;
+            put += err;
+            buf = (char *)buf + err * per_frame_size;
         }
     }
 
-    return err;
+    return put;
 }
 
 

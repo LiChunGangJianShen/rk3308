@@ -145,7 +145,7 @@ ssize_t rb_write(struct ringbuffer *rb, const void *buf, size_t len)
     size_t left = rb_get_space_free_internal(rb);
     if (len > left) {
         rb_unlock(rb);
-        logw("Not enough space: %zu request, %zu available\n", len, left);
+        //logw("Not enough space: %zu request, %zu available\n", len, left);
         return -1;
     }
 

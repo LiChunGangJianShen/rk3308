@@ -45,17 +45,17 @@ typedef enum {
 static sem_t g_sem_3a[alg_idx_max];
 static struct ringbuffer *g_ringbuf_ai[alg_idx_max] = {0};
 static struct ringbuffer *g_ringbuf_ao[PLAYBACK_CHN] = {0};
+static struct ringbuffer *g_ringbuf_fill_data[PLAYBACK_CHN] = {0};
 static struct ringbuffer *g_ringbuf_rec = 0;
 static const float ALG_COST_TIME = (float)(ALG_FRAMES / (SAMPLE_RATE / 1000.0f));
-// static const float SAMPLE_PER_MS_FLOAT = (float)(SAMPLE_RATE / 1000.0f);
+static const float SAMPLE_PER_MS_FLOAT = (float)(SAMPLE_RATE / 1000.0f);
 static FILE *p_file_rec = NULL;
 struct my_wave_file_headers st_wavhead;
 static unsigned long total_size = 0;
 static atomic_int g_record_action = algo_record_cmd_none;
 
-// static pthread_state_t capture_task_state;
-// static pthread_state_t playback_task_state;
-static pthread_state_t capture_and_playback_task_state;
+static pthread_state_t capture_task_state;
+static pthread_state_t playback_task_state;
 static pthread_state_t alg_task_state;
 static pthread_state_t alg2_task_state;
 static pthread_state_t alg3_task_state;
@@ -593,22 +593,24 @@ static int capture_pcm_init(snd_pcm_t **pcm)
     }
     return ret;
 }
-#if 0
+
+int timeout_flag = 0;
+int timeout_playnum = 0;
+int first_capture = 0;
+int first_ago_out = 0;
 static int capture_task(void *arg)
 {
-    int err,get_frames=0;
+    int err;
     snd_pcm_t *ppcm_capture = NULL;
     snd_pcm_state_t pcm_state;
-    snd_pcm_status_t *status;
-    snd_pcm_uframes_t status_avail, status_avail_max;
     int cnt = 0;
     int start_err = 0;
     audio_fmt_t capture_buff[PERIOD_SIZE][CAPTURE_CHN] = {0};
-    snd_pcm_sframes_t avail_frames = 0;
-    int bytess_buff = sizeof(capture_buff);
-
-    snd_pcm_status_alloca(&status);
-
+    //snd_pcm_sframes_t avail_frames = 0;
+    int per_sample_time = (int)(1000000.0f / SAMPLE_RATE + 0.5f);
+    //int bytess_buff = sizeof(capture_buff);
+    int bytess_act = sizeof(audio_fmt_t) * CAPTURE_CHN;
+	
     prctl(PR_SET_NAME, capture_task_state.name);
     logi("---- proc %s start ----\n", capture_task_state.name);
 
@@ -622,6 +624,7 @@ static int capture_task(void *arg)
     if(start_err < 0){
         loge("first snd_pcm_start failed\n");
     }
+	
     while(cnt < 20){
         pcm_state = snd_pcm_state(ppcm_capture);
         if(pcm_state == SND_PCM_STATE_RUNNING){
@@ -639,50 +642,59 @@ static int capture_task(void *arg)
         cnt++;
         delay_ms(100);
     }
+	
+	int num_remain = ALG_FRAMES - 8;
+	for(int i = 0; i < alg_idx_max; i++)
+	{
+        rb_write(g_ringbuf_ai[i], capture_buff, num_remain * bytess_act);
+    }
 
     while (capture_task_state.running)
     {
+    	int sleep_num = 1 * per_sample_time;
+		
         if(ppcm_capture){
-            avail_frames = snd_pcm_avail_update(ppcm_capture);
-            if(avail_frames >= PERIOD_SIZE){
-                memset(capture_buff, 0, bytess_buff);
-                err = pcm_in(ppcm_capture, capture_buff, PERIOD_SIZE, "capture");
-                if(err > 0){
-                    get_frames += err;
-                    for(int i = 0; i < alg_idx_max; i++){
-                        if(rb_get_space_free(g_ringbuf_ai[i]) < bytess_buff){
+            int avail_num = snd_pcm_avail_update(ppcm_capture);
+            if(avail_num >= 8)
+			{
+                //memset(capture_buff, 0, bytess_buff);
+                int num_curr = pcm_in(ppcm_capture, capture_buff, avail_num, CAPTURE_CHN, "capture");
+                if(num_curr > 0)
+				{
+					if(first_capture < 1)
+					{
+						first_capture++;
+						num_curr = 8;//(num_curr > 8) ? 8 : num_curr;
+					}
+					
+                    num_remain += num_curr;
+                    for(int i = 0; i < alg_idx_max; i++)
+					{
+                        /*if(rb_get_space_free(g_ringbuf_ai[i]) < bytess_buff){
                             rb_discard(g_ringbuf_ai[i], bytess_buff);
-                        }
-                        rb_write(g_ringbuf_ai[i], capture_buff, bytess_buff);
+                        }*/
+                        rb_write(g_ringbuf_ai[i], capture_buff, num_curr * bytess_act);
                     }
                 }
-            }
-            else if(avail_frames < 0){
-                logd("err capture avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
-                check_pcm_state(ppcm_capture, avail_frames, "capture");
+
+				sleep_num = 6 * per_sample_time;
             }
 
-            err = snd_pcm_status(ppcm_capture, status);
-            if(err == 0){
-                pcm_state = snd_pcm_status_get_state(status);
-                status_avail = snd_pcm_status_get_avail(status);
-                status_avail_max = snd_pcm_status_get_avail_max(status);
-                if(pcm_state != SND_PCM_STATE_RUNNING && status_avail == 0 && status_avail_max == 0){
-                    logd("err capture state=%s, avail=%ld, avail_max=%ld\n", 
-                        snd_pcm_state_name(pcm_state), status_avail, status_avail_max);
-
-                    // snd_pcm_start(ppcm_capture);
-                }
+			if(avail_num < 0)
+			{
+                logd("err capture avail_num=%ld,%s\n", avail_num, snd_strerror(avail_num));
+                check_pcm_state(ppcm_capture, avail_num, "capture");
             }
         }
-
-        if(get_frames >= ALG_FRAMES){
-            get_frames -= ALG_FRAMES;
+		
+        if(num_remain >= ALG_FRAMES){
+            num_remain -= ALG_FRAMES;
             for(int i = 0; i < alg_idx_max; i++){
                 sem_post(&g_sem_3a[i]);
             }
         }
-        usleep(100);
+		
+        delay_us(sleep_num);
     }
     
 err_to_exit:
@@ -692,7 +704,7 @@ err_to_exit:
 
     return 0;
 }
-#endif
+
 static int playback_pcm_init(snd_pcm_t **pcm)
 { 
     int ret = 0;
@@ -713,7 +725,6 @@ static int playback_pcm_init(snd_pcm_t **pcm)
     }
     return ret;
 }
-
 #if 0
 static void smooth_data(audio_fmt_t *data, int len)
 { 
@@ -725,18 +736,18 @@ static void smooth_data(audio_fmt_t *data, int len)
     } 
 }
 #endif
-#if 0
+
 static int playback_task(void *arg)
 {
     int err;
     snd_pcm_t *ppcm_playback;
-    audio_fmt_t playback_buff[PERIOD_SIZE][PLAYBACK_CHN] = {0};
-    audio_fmt_t tmpbuff[PLAYBACK_CHN][PERIOD_SIZE] = {0};
-    snd_pcm_sframes_t avail_frames;
+    audio_fmt_t playback_buff[256][PLAYBACK_CHN] = {0};
+    audio_fmt_t tmpbuff[PLAYBACK_CHN][256] = {0};
+    //snd_pcm_sframes_t avail_frames;
+    int per_sample_time = (int)(1000000.0f / SAMPLE_RATE + 0.5f);
     int bytess_fmt = sizeof(audio_fmt_t);
-    int bytess = bytess_fmt*PERIOD_SIZE;
-    time_t start_time, cur_time;
-
+    //int bytess = bytess_fmt*PERIOD_SIZE;
+	
     prctl(PR_SET_NAME, playback_task_state.name);
     logi("---- proc %s start ----\n", playback_task_state.name);
 
@@ -745,10 +756,8 @@ static int playback_task(void *arg)
         loge("playback pcm init failed\n");
         goto err_to_exit;
     }
-
-    start_time = time(NULL);
-
-    while(1){
+	
+    /*while(1){
         if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
             break;
         }
@@ -756,37 +765,74 @@ static int playback_task(void *arg)
         //alsa驱动buffer中有静音数据仍未播放完成，增加了延迟
         // pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
         delay_us(100);
-    }
+    }*/
+	
+	/*while(first_capture == 0)
+	{
+		delay_us(100);
+	}*/
 
+#define TRY_PLAY_SAMPLE	16
+	audio_fmt_t tmp_buff[TRY_PLAY_SAMPLE][PLAYBACK_CHN] = {0};
+	pcm_out(ppcm_playback, tmp_buff, TRY_PLAY_SAMPLE, PLAYBACK_CHN, "playback");
+	int num_procss = 16;
+	int bytess_fmt_act = num_procss * bytess_fmt;
     while (playback_task_state.running)
     {
-        if(ppcm_playback){
-            avail_frames = snd_pcm_avail_update(ppcm_playback);
-            if(avail_frames >= PERIOD_SIZE){
-                memset(tmpbuff[0], 0, bytess);
-                memset(tmpbuff[1], 0, bytess);
-                if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
-                    rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess);
+    	int sleep_num = 10 * per_sample_time;
+		
+        if(ppcm_playback)
+		{
+			int avail_num = snd_pcm_avail_update(ppcm_playback);
+			
+            if(first_capture > 0 && avail_num >= num_procss)
+			{
+				int num_l = rb_get_space_used(g_ringbuf_ao[0]);
+                if(num_l >= bytess_fmt_act)
+				{
+                    rb_read(g_ringbuf_ao[0], tmpbuff[0], bytess_fmt_act);
+                }
+                else
+				{
+					rb_read(g_ringbuf_ao[0], tmpbuff[0], num_l);
+                    rb_read_try(g_ringbuf_fill_data[0], tmpbuff[0]+num_l, bytess_fmt_act-num_l);
+					
+					//timeout_flag = 1;
+					//timeout_playnum += num_procss;
                 }
 
-                if(rb_get_space_used(g_ringbuf_ao[1]) >= bytess){
-                    rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess);
+				int num_r = rb_get_space_used(g_ringbuf_ao[1]);
+                if(num_r >= bytess_fmt_act)
+				{
+                    rb_read(g_ringbuf_ao[1], tmpbuff[1], bytess_fmt_act);
+                }
+                else
+				{
+					rb_read(g_ringbuf_ao[1], tmpbuff[1], num_r);
+                    rb_read_try(g_ringbuf_fill_data[1], tmpbuff[1]+num_r, bytess_fmt_act-num_r);
                 }
                 
-                for(int i = 0; i < PLAYBACK_CHN; i++){
-                    for(int j = 0; j < PERIOD_SIZE; j++){
+                for(int i = 0; i < PLAYBACK_CHN; i++)
+				{
+                    for(int j = 0; j < num_procss; j++)
+					{
                         playback_buff[j][i] = tmpbuff[i][j];
                     }
                 }
-                pcm_out(ppcm_playback, playback_buff, PERIOD_SIZE, "playback");
+                pcm_out(ppcm_playback, playback_buff, num_procss, PLAYBACK_CHN, "playback");
+				
+				sleep_num = 4 * per_sample_time;
             }
-			else if(avail_frames < 0){
-                logd("err playback avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
-                check_pcm_state(ppcm_playback, avail_frames, "playback");
+			
+			if(avail_num < 0)
+			{
+                logd("err playback avail_num=%ld,%s\n", avail_num, snd_strerror(avail_num));
+                check_pcm_state(ppcm_playback, avail_num, "playback");
             }
         }
+		
 
-        delay_us(100);
+        delay_us(sleep_num);
     }
     
 err_to_exit:
@@ -795,152 +841,13 @@ err_to_exit:
     logi("---- proc %s stop ----\n", playback_task_state.name);
     return 0;
 }
-#endif
-static int capture_and_playback_task(void *arg)
-{
-    int err, start_err, get_frames = 0, cnt = 0;
-    snd_pcm_t *ppcm_capture = NULL;
-    snd_pcm_t *ppcm_playback = NULL;
-    snd_pcm_state_t pcm_state;
-    snd_pcm_sframes_t avail_frames = 0;
-    audio_fmt_t buf_capture[PERIOD_SIZE][CAPTURE_CHN] = {0};
-    audio_fmt_t buf_playback[PERIOD_SIZE][PLAYBACK_CHN] = {0};
-    audio_fmt_t buf_tmp[PERIOD_SIZE] = {0};
-    audio_fmt_t buf_tmp1[PERIOD_SIZE] = {0};
-    int bytes_fmt = sizeof(audio_fmt_t);
-    int bytes_capture = bytes_fmt * PERIOD_SIZE * CAPTURE_CHN;
-    // int bytes_playback = bytes_fmt * PERIOD_SIZE * PLAYBACK_CHN;
-    int bytes_tmp = bytes_fmt * PERIOD_SIZE;
-    int bytes_tmp1 = bytes_fmt * PERIOD_SIZE;
-    snd_pcm_status_t *status;
-    snd_pcm_uframes_t status_avail, status_avail_max;
 
-    prctl(PR_SET_NAME, capture_and_playback_task_state.name);
-    logi("---- proc %s start ----\n", capture_and_playback_task_state.name);
-
-    snd_pcm_status_alloca(&status);
-
-    err = capture_pcm_init(&ppcm_capture);
-    if(err < 0){
-        logi("capture pcm init failed\n");
-        goto err_to_exit;
-    }
-
-    err = playback_pcm_init(&ppcm_playback);
-    if(err < 0){
-        loge("playback pcm init failed\n");
-        goto err_to_exit;
-    }
-
-    start_err = snd_pcm_start(ppcm_capture);
-    if(start_err < 0){
-        loge("first snd_pcm_start failed\n");
-    }
-    while(cnt < 20){
-        pcm_state = snd_pcm_state(ppcm_capture);
-        if(pcm_state == SND_PCM_STATE_RUNNING){
-            logi("pcm state: %s\n", snd_pcm_state_name(pcm_state));
-            break;
-        }
-
-        if(start_err < 0){
-            start_err = snd_pcm_start(ppcm_capture);
-            if(start_err >= 0){
-                logi("restry snd_pcm_start success\n");
-            }
-        }
-
-        cnt++;
-        delay_ms(100);
-    }
-
-    while(capture_and_playback_task_state.running){
-        if(ppcm_capture){
-            avail_frames = snd_pcm_avail_update(ppcm_capture);
-            if(avail_frames >= PERIOD_SIZE){
-                memset(buf_capture, 0, bytes_capture);
-                err = pcm_in(ppcm_capture, buf_capture, PERIOD_SIZE, "capture");
-                if(err > 0){
-                    get_frames += err;
-                    for(int i = 0; i < alg_idx_max; i++){
-                        if(rb_get_space_free(g_ringbuf_ai[i]) < bytes_capture){
-                            rb_discard(g_ringbuf_ai[i], bytes_capture);
-                        }
-                        rb_write(g_ringbuf_ai[i], buf_capture, bytes_capture);
-                    }
-                }
-            }
-            else if(avail_frames < 0){
-                logd("err capture avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
-                check_pcm_state(ppcm_capture, avail_frames, "capture");
-            }
-
-            err = snd_pcm_status(ppcm_capture, status);
-            if(err == 0){
-                pcm_state = snd_pcm_status_get_state(status);
-                status_avail = snd_pcm_status_get_avail(status);
-                status_avail_max = snd_pcm_status_get_avail_max(status);
-                if(pcm_state != SND_PCM_STATE_RUNNING && status_avail == 0 && status_avail_max == 0){
-                    logd("err capture state=%s, avail=%ld, avail_max=%ld\n", 
-                        snd_pcm_state_name(pcm_state), status_avail, status_avail_max);
-
-                    snd_pcm_start(ppcm_capture);
-                }
-            }
-        }
-
-        if(ppcm_playback){
-            avail_frames = snd_pcm_avail_update(ppcm_playback);
-            if(avail_frames >= PERIOD_SIZE){
-                memset(buf_tmp, 0, bytes_tmp);
-                memset(buf_tmp1, 0, bytes_tmp1);
-                if(rb_get_space_used(g_ringbuf_ao[0]) >= bytes_tmp){
-                    rb_read(g_ringbuf_ao[0], buf_tmp, bytes_tmp);
-                }
-
-                if(rb_get_space_used(g_ringbuf_ao[1]) >= bytes_tmp1){
-                    rb_read(g_ringbuf_ao[1], buf_tmp1, bytes_tmp1);
-                }
-                
-                for(int j = 0; j < PERIOD_SIZE; j++){
-                    buf_playback[j][0] = buf_tmp[j];
-                    buf_playback[j][1] = buf_tmp1[j];
-                }
-                pcm_out(ppcm_playback, buf_playback, PERIOD_SIZE, "playback");
-            }
-			else if(avail_frames < 0){
-                logd("err playback avail_frames=%ld,%s\n", avail_frames, snd_strerror(avail_frames));
-                check_pcm_state(ppcm_playback, avail_frames, "playback");
-            }
-        }
-
-        if(get_frames >= ALG_FRAMES){
-            get_frames -= ALG_FRAMES;
-            for(int i = 0; i < alg_idx_max; i++){
-                sem_post(&g_sem_3a[i]);
-            }
-        }
-
-        delay_us(100);
-    }
-
-err_to_exit:
-    if(ppcm_capture){
-        safe_capture_pcm_close(&ppcm_capture);
-    }
-    if(ppcm_playback){
-        safe_playback_pcm_close(&ppcm_playback);
-    }
-
-    logi("---- proc %s stop ----\n", capture_and_playback_task_state.name);
-    return 0;
-}
 
 static int alg_task(void *arg)
 {
     struct timeval tvbef, tvaft, tvcur, tvlast;
     unsigned long time_out_cnt = 0;
-	double cost = 0, cost_max = 0/*, last_cost_max = 0*/;
+	double cost = 0, cost_max = 0, last_cost_max = 0;
     audio_fmt_t rec_buff[ALG_FRAMES][REC_CHN] = {0};
     audio_fmt_t capture_buff[ALG_FRAMES][CAPTURE_CHN] = {0};
     audio_fmt_t mic_data1[ALG_FRAMES] = {0};
@@ -970,58 +877,94 @@ static int alg_task(void *arg)
             mic_data2[i] = capture_buff[i][1];
         }
 
-        memset(out_data1, 0, bytess_alg_frames);
-        memset(out_data2, 0, bytess_alg_frames);
+        //memset(out_data1, 0, bytess_alg_frames);
+        //memset(out_data2, 0, bytess_alg_frames);
         gettimeofday(&tvbef, NULL);
 #if ENABLE_ALGO
         _algo_process1(mic_data1, mic_data2, out_data1, out_data2, NULL, NULL);
+		
 #else
         memcpy(out_data1, mic_data1, bytess_alg_frames);
         memcpy(out_data2, mic_data2, bytess_alg_frames);
 #endif
+
         gettimeofday(&tvaft, NULL);
-        if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
-            rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
-        }
-        rb_write(g_ringbuf_ao[0], out_data1, bytess_alg_frames);
+
+		int num_write = bytess_alg_frames;
+		if(first_ago_out == 0)
+		{
+			num_write = 0; //bytess*(ALG_FRAMES - 16);
+		}
+		
+		//if(timeout_flag == 1)
+		//{
+			//num_write = bytess*(ALG_FRAMES - 8);
+			//num_write = bytess*(ALG_FRAMES - timeout_playnum);
+			//num_write = (num_write > 0) ? num_write : 0;
+			timeout_flag = 0;
+			timeout_playnum = 0;
+		//}
+		
+        //if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_ao[0], out_data1, num_write);
+        //if(rb_get_space_free(g_ringbuf_fill_data[0]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_fill_data[0], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_fill_data[0], out_data1, bytess_alg_frames);
 #if TWO_OUT_DATA
-        if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
-            rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
-        }
-        rb_write(g_ringbuf_ao[1], out_data2, bytess_alg_frames);
+        //if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_ao[1], out_data2, num_write);
+        //if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_fill_data[1], out_data2, bytess_alg_frames);
 #else
-        if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
-            rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
-        }
-        rb_write(g_ringbuf_ao[1], out_data1, bytess_alg_frames);
+        //if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_ao[1], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_ao[1], out_data1, num_write);
+        //if(rb_get_space_free(g_ringbuf_fill_data[1]) < bytess_alg_frames){
+        //    rb_discard(g_ringbuf_fill_data[1], bytess_alg_frames);
+        //}
+        rb_write(g_ringbuf_fill_data[1], out_data1, bytess_alg_frames);
 #endif
+
+		if(first_ago_out < 10)
+		{
+			first_ago_out++;
+		}
+		
         cost = check_time_increment_ms_f(tvbef, tvaft);
         if(cost > cost_max){
             cost_max = cost;
         }
         if(cost_max > ALG_COST_TIME){
             time_out_cnt++;
-            // if(cost_max > last_cost_max){
-            //     double delay = cost_max - ALG_COST_TIME;
-            //     int delay_sample = (int)round(delay * SAMPLE_PER_MS_FLOAT);//四舍五入
-            //     int bytess_delay = bytess * delay_sample;
-            //     last_cost_max = cost_max;
-            //     if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_delay){
-            //         rb_discard(g_ringbuf_ao[0], bytess_delay);
-            //     }
-            //     rb_write(g_ringbuf_ao[0], out_data1, bytess_delay);
-            //     #if TWO_OUT_DATA
-            //     if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
-            //         rb_discard(g_ringbuf_ao[1], bytess_delay);
-            //     }
-            //     rb_write(g_ringbuf_ao[1], out_data2, bytess_delay);
-            //     #else
-            //     if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
-            //         rb_discard(g_ringbuf_ao[1], bytess_delay);
-            //     }
-            //     rb_write(g_ringbuf_ao[1], out_data1, bytess_delay);
-            //     #endif
-            // }
+            if(cost_max > last_cost_max){
+                double delay = cost_max - ALG_COST_TIME;
+                int delay_sample = (int)round(delay * SAMPLE_PER_MS_FLOAT);//四舍五入
+                int bytess_delay = bytess * delay_sample;
+                last_cost_max = cost_max;
+                //if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_delay){
+                //    rb_discard(g_ringbuf_ao[0], bytess_delay);
+                //}
+                rb_write(g_ringbuf_ao[0], out_data1, bytess_delay);
+                #if TWO_OUT_DATA
+                //if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
+                //    rb_discard(g_ringbuf_ao[1], bytess_delay);
+                //}
+                rb_write(g_ringbuf_ao[1], out_data2, bytess_delay);
+                #else
+                //if(rb_get_space_free(g_ringbuf_ao[1]) < bytess_delay){
+                //    rb_discard(g_ringbuf_ao[1], bytess_delay);
+                //}
+                rb_write(g_ringbuf_ao[1], out_data1, bytess_delay);
+                #endif
+            }
         }
 
         gettimeofday(&tvcur, NULL);
@@ -1330,27 +1273,20 @@ int audio_start()
 { 
     int ret = 0;
     int size;
-
-    if(PERIOD_SIZE >= ALG_FRAMES){
-        size = sizeof(audio_fmt_t) * ALG_FRAMES * 2 * CAPTURE_CHN;
-    }
-    else{
-        size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4 * CAPTURE_CHN;
-    }
+#define SAMPLE_CNT	4
+    size = sizeof(audio_fmt_t) * CAPTURE_CHN * (ALG_FRAMES + 8 * SAMPLE_CNT);
     for(int i = 0; i < alg_idx_max; i++){
         g_ringbuf_ai[i] = rb_create(size);
     }
-
-    if(PERIOD_SIZE >= ALG_FRAMES){
-        size = sizeof(audio_fmt_t) * ALG_FRAMES * 2;
-    }
-    else{
-        size = sizeof(audio_fmt_t) * PERIOD_SIZE * 4;
-    }
+	
+    size = sizeof(audio_fmt_t) * (ALG_FRAMES + 16 * SAMPLE_CNT);
     for(int i = 0; i < PLAYBACK_CHN; i++){
         g_ringbuf_ao[i] = rb_create(size);
     }
-
+    size = sizeof(audio_fmt_t) * ALG_FRAMES * 2;
+    for(int i = 0; i < PLAYBACK_CHN; i++){
+        g_ringbuf_fill_data[i] = rb_create(size);
+    }
     size = sizeof(audio_fmt_t) * SAMPLE_RATE * 2 * REC_CHN;
     g_ringbuf_rec = rb_create(size);
 
@@ -1372,20 +1308,15 @@ int audio_start()
     if(ret < 0){
         goto err_algo3;
     }
-    ret = task_init(CPU_0, 70, "capture_and_playback", &capture_and_playback_task_state, capture_and_playback_task);
+    ret = task_init(CPU_0, 70, "capture", &capture_task_state, capture_task);
     if(ret < 0){
-        goto err_capture_and_playback;
+        goto err_capture;
     }
 
-    // ret = task_init(CPU_0, 70, "capture", &capture_task_state, capture_task);
-    // if(ret < 0){
-    //     goto err_capture;
-    // }
-
-    // ret = task_init(CPU_0, 70, "playback", &playback_task_state, playback_task);
-    // if(ret < 0){
-    //     goto err_playback;
-    // }
+    ret = task_init(CPU_0, 70, "playback", &playback_task_state, playback_task);
+    if(ret < 0){
+        goto err_playback;
+    }
 
     ret = task_init(CPU_0, 60, "serial", &serial_task_state, serial_task);
     if(ret < 0){
@@ -1409,12 +1340,10 @@ err_rec:
 err_key:
     task_destroy(&serial_task_state);
 err_serial:
-    task_destroy(&capture_and_playback_task_state);
-err_capture_and_playback:
-//     task_destroy(&playback_task_state);
-// err_playback:
-//     task_destroy(&capture_task_state);
-// err_capture:
+    task_destroy(&playback_task_state);
+err_playback:
+    task_destroy(&capture_task_state);
+err_capture:
     task_destroy(&alg3_task_state);
 err_algo3:
     task_destroy(&alg2_task_state);
@@ -1430,6 +1359,7 @@ err_algo1:
     }
     for(int i = 0; i < PLAYBACK_CHN; i++){
         rb_destroy(g_ringbuf_ao[i]);
+        rb_destroy(g_ringbuf_fill_data[i]);
     }
     rb_destroy(g_ringbuf_rec);
     return ret;
@@ -1440,9 +1370,8 @@ void audio_stop()
     task_destroy(&alg_task_state);
     task_destroy(&alg2_task_state);
     task_destroy(&alg3_task_state);
-    task_destroy(&capture_and_playback_task_state);
-    // task_destroy(&capture_task_state);
-    // task_destroy(&playback_task_state);
+    task_destroy(&capture_task_state);
+    task_destroy(&playback_task_state);
     task_destroy(&serial_task_state);
     task_destroy(&rec_task_state);
 
@@ -1455,6 +1384,7 @@ void audio_stop()
     }
     for(int i = 0; i < PLAYBACK_CHN; i++){
         rb_destroy(g_ringbuf_ao[i]);
+        rb_destroy(g_ringbuf_fill_data[i]);
     }
     rb_destroy(g_ringbuf_rec);
 }

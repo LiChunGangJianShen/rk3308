@@ -23,8 +23,8 @@ typedef short audio_fmt_t;
 
 int init_pcm(snd_pcm_t **ppcm, alsa_api_para_t alsa_params);
 void exit_pcm(snd_pcm_t *ppcm);
-int pcm_in(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
-int pcm_out(snd_pcm_t *ppcm, void *buf, int size, const char *card_name);
+int pcm_in(snd_pcm_t *ppcm, void *buf, int size, int ch, const char *card_name);
+int pcm_out(snd_pcm_t *ppcm, void *buf, int size, int ch, const char *card_name);
 int check_pcm_state(snd_pcm_t *ppcm, int state, const char *alias);
 int get_card_num(const char *name);
 void safe_capture_pcm_close(snd_pcm_t **pcm);
