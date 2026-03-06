@@ -3,6 +3,7 @@
 
 typedef bool (*ptr_noise)(int, float);
 typedef bool (*ptr_feedback_switch)(int);
+typedef bool (*ptr_ai_switch)(int);
 typedef bool (*ptr_mute)(int);
 typedef bool (*ptr_seteq)(float*);
 typedef bool (*ptr_setmicgain)(float);
@@ -15,6 +16,7 @@ typedef void (*ptr_process3)(const short*, const short*, short*, short*);
 
 ptr_noise algo_pinknoise = JDZH_FeedbackDestroy_PinkNoiseOnOff;
 ptr_feedback_switch algo_feedback_switch = JDZH_FeedbackDestroy_FeedbackOnOff;
+ptr_ai_switch algo_ai_switch = JDZH_FeedbackDestroy_AIOnOff;
 ptr_mute algo_mute = JDZH_FeedbackDestroy_MuteOnOff;
 ptr_seteq algo_seteq = JDZH_FeedbackDestroy_SetEQ;
 ptr_setmicgain algo_set_micgain = JDZH_FeedbackDestroy_SetInputMicGain;
@@ -120,6 +122,11 @@ bool pinknoise_switch(int onoff, float gain)
 bool feed_back_switch(int onoff)
 { 
     return algo_feedback_switch(onoff); 
+}
+
+bool ai_switch(int onoff)
+{ 
+    return algo_ai_switch(onoff); 
 }
 
 bool feed_back_mute(int mute)

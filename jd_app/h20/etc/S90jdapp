@@ -2,20 +2,18 @@
 
 prepare_clk()
 {
-	echo "Initializing audio clock... Start"
-	aplay -Dplug_dmix_h20aiao /dev/zero -fs16_le -r22050 -c2 -d 1
-	echo "Initializing audio clock... End"
-	# aplay -Dplug_dmix_h20aiao /dev/zero -fs16_le -r22050 -c2 &
-	# PID=$!
-	# sleep 1
+	echo "Initializing audio clock..."
+	aplay -Dplug_dmix_h20aiao /dev/zero -fs16_le -r22050 -c2 &
+	PID=$!
+	sleep 1
 	
-	# if ps | grep -w "^\s*$PID" > /dev/null; then
-	# 	kill -9 $PID 2>/dev/null
-	# 	wait $PID 2>/dev/null
-	# 	echo "Audio clock initialization completed"
-	# else
-	# 	echo "Warning: Failed to initialize audio clock"
-	# fi
+	if ps | grep -w "^\s*$PID" > /dev/null; then
+		kill -9 $PID 2>/dev/null
+		wait $PID 2>/dev/null
+		echo "Audio clock initialization completed"
+	else
+		echo "Warning: Failed to initialize audio clock"
+	fi
 }
 
 case "$1" in

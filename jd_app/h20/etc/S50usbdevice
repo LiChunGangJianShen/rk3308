@@ -129,7 +129,7 @@ restart|reload)
 	UDC=`ls /sys/class/udc/| awk '{print $1}'`
 	CFG_UDC=`cat /sys/kernel/config/usb_gadget/rockchip/UDC`
 	if [ x$UDC != x$CFG_UDC ]; then
-		sleep 2
+		sleep 1
 		echo $UDC > /sys/kernel/config/usb_gadget/rockchip/UDC
 	fi
 	;;

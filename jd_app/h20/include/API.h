@@ -7,6 +7,9 @@ extern "C" {
 
 #include <stdbool.h>
 
+// AI降噪开关, 0关闭 1开启(默认 0关闭)
+bool JDZH_FeedbackDestroy_AIOnOff(int ai_flag);
+
 // 白噪声输出模式
 // pinknoise_flag = 0: 关闭白噪声模式; 1: 输出白噪声
 // noise_gain 白噪声幅度增益, 取值范围(0.1, 10.0)，默认1.0
