@@ -65,6 +65,7 @@ static pthread_state_t serial_task_state;
 
 static int g_cur_fb_state = 1;
 static int g_noise_state = 0;
+static int g_ai_enable = 0;
 static float g_eq[16] = {0.0};
 
 static void rec_start(void);
@@ -309,7 +310,7 @@ static bool check_sum(const char *buf, int length)
         sum += buf[i];
     }
     sum &= 0xff;
-    logi("cal_sum=0x%x, recv_sum=0x%x, buf[%d]=0x%x\n", sum, buf[i], i, buf[i]);
+    logd("cal_sum=0x%x, recv_sum=0x%x, buf[%d]=0x%x\n", sum, buf[i], i, buf[i]);
     if(sum != buf[i]){
         return false;
     }
@@ -326,7 +327,8 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
     int length = 16;
     int sum=0;
     if(buf == NULL || buf[0] != 0xFE || buf[data_len-1] != 0xFE || \
-        (buf[2] != 0x01 && buf[2] != 0x02 && buf[2] != 0x03 && buf[2] != 0x04 && buf[2] != 0x05)){
+        (buf[2] != 0x01 && buf[2] != 0x02 && buf[2] != 0x03 && \
+            buf[2] != 0x04 && buf[2] != 0x05 && buf[2] != 0x06)){
         loge("invalid serial cmd\n");
         return;
     }
@@ -516,6 +518,25 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
         write(fd, sbuf, 7);
         pinknoise_switch(g_noise_state, 1.0);
     }
+    else if(buf[2] == 0x06){
+        if(check_sum(buf, data_len) == false){
+            loge("cmd ai wsitch check_sum error\n");
+            memset(sbuf, 1, sizeof(sbuf));
+            write(fd, sbuf, 7);
+            return;
+        }
+        g_ai_enable = buf[4];
+        sbuf[0] = 0xFE;
+        sbuf[1] = 0x01;
+        sbuf[2] = 0x06;
+        sbuf[3] = 0x01;
+        sbuf[4] = g_ai_enable?0x01:0x00;
+        sbuf[5] = 0x00ff & (sbuf[1]+sbuf[2]+sbuf[3]+sbuf[4]);
+        sbuf[6] = 0xFE;
+        write(fd, sbuf, 7);
+        logi("==== function %s ====\n", g_ai_enable?"enable":"disable");
+        ai_switch(g_ai_enable);
+    }
 }
 
 static int serial_task(void *arg)
@@ -551,7 +572,7 @@ static int serial_task(void *arg)
                 ret = read(serial_fd, rbuf, sizeof(rbuf));
                 if(ret > 0){
                     for(int i = 0; i < ret; i++){
-                        logi("ret=%d, recv: rbuf[%d]=0x%x\n", ret, i, 0xff & rbuf[i]);
+                        logd("ret=%d, recv: rbuf[%d]=0x%x\n", ret, i, 0xff & rbuf[i]);
                     }
                     serial_cmd_handle(serial_fd, rbuf, ret);
                 }
