@@ -7,6 +7,8 @@ extern "C" {
 
 void init_ad_reset(void);
 void exit_ad_reset(void);
+int check_ad_start();
+void ad_can_be_to_start();
 
 #ifdef __cplusplus
 }

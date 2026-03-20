@@ -15,6 +15,7 @@
 #include "audio.h"
 #include "serial.h"
 #include "rkgpio.h"
+#include "ad_ctrl.h"
 
 #ifndef M_PI
 #define M_PI        3.1415926
@@ -603,7 +604,11 @@ static int capture_pcm_init(snd_pcm_t **pcm)
     para.block = SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_CAPTURE;
+#if EN_24BIT
+    para.format = SND_PCM_FORMAT_S24_LE;
+#else
     para.format = SND_PCM_FORMAT_S16_LE;
+#endif
     para.chn = CAPTURE_CHN;
     para.rate = SAMPLE_RATE;
     para.period_size = PERIOD_SIZE;
@@ -633,7 +638,7 @@ static int capture_task(void *arg)
     int bytess_act = sizeof(audio_fmt_t) * CAPTURE_CHN;
     snd_pcm_status_t *status;
     snd_pcm_uframes_t status_avail, status_avail_max;
-	
+
     prctl(PR_SET_NAME, capture_task_state.name);
     logi("---- proc %s start ----\n", capture_task_state.name);
 
@@ -693,8 +698,7 @@ static int capture_task(void *arg)
 					}
 					
                     num_remain += num_curr;
-                    for(int i = 0; i < alg_idx_max; i++)
-					{
+                    for (int i = 0; i < alg_idx_max; i++) {
                         /*if(rb_get_space_free(g_ringbuf_ai[i]) < bytess_buff){
                             rb_discard(g_ringbuf_ai[i], bytess_buff);
                         }*/
@@ -703,6 +707,10 @@ static int capture_task(void *arg)
                 }
 
 				sleep_num = 6 * per_sample_time;
+
+                if(!check_ad_start()){
+                    ad_can_be_to_start();
+                }
             }
 
 			if(avail_num < 0)
@@ -752,7 +760,11 @@ static int playback_pcm_init(snd_pcm_t **pcm)
     para.block = SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_PLAYBACK;
+#if EN_24BIT
+    para.format = SND_PCM_FORMAT_S24_LE;
+#else
     para.format = SND_PCM_FORMAT_S16_LE;
+#endif
     para.chn = PLAYBACK_CHN;
     para.rate = SAMPLE_RATE;
     para.period_size = PERIOD_SIZE;
@@ -813,8 +825,8 @@ static int playback_task(void *arg)
 #define TRY_PLAY_SAMPLE	16
 	audio_fmt_t tmp_buff[TRY_PLAY_SAMPLE][PLAYBACK_CHN] = {0};
 	pcm_out(ppcm_playback, tmp_buff, TRY_PLAY_SAMPLE, PLAYBACK_CHN, "playback");
-	int num_procss = 16;
-	int bytess_fmt_act = num_procss * bytess_fmt;
+    int num_procss = 16;
+    int bytess_fmt_act = num_procss * bytess_fmt;
     while (playback_task_state.running)
     {
     	int sleep_num = 10 * per_sample_time;
@@ -835,8 +847,8 @@ static int playback_task(void *arg)
 					rb_read(g_ringbuf_ao[0], tmpbuff[0], num_l);
                     rb_read_try(g_ringbuf_fill_data[0], tmpbuff[0]+num_l, bytess_fmt_act-num_l);
 					
-					//timeout_flag = 1;
-					//timeout_playnum += num_procss;
+					timeout_flag = 1;
+					timeout_playnum += num_procss;
                 }
 
 				int num_r = rb_get_space_used(g_ringbuf_ao[1]);
@@ -860,6 +872,10 @@ static int playback_task(void *arg)
                 pcm_out(ppcm_playback, playback_buff, num_procss, PLAYBACK_CHN, "playback");
 				
 				sleep_num = 4 * per_sample_time;
+
+                if(!check_ad_start()){
+                    ad_can_be_to_start();
+                }
             }
 			
 			if(avail_num < 0)
@@ -869,7 +885,6 @@ static int playback_task(void *arg)
             }
         }
 		
-
         delay_us(sleep_num);
     }
     
@@ -925,7 +940,6 @@ static int alg_task(void *arg)
         memcpy(out_data1, mic_data1, bytess_alg_frames);
         memcpy(out_data2, mic_data2, bytess_alg_frames);
 #endif
-
         gettimeofday(&tvaft, NULL);
 
 		int num_write = bytess_alg_frames;
@@ -934,14 +948,14 @@ static int alg_task(void *arg)
 			num_write = 0; //bytess*(ALG_FRAMES - 16);
 		}
 		
-		//if(timeout_flag == 1)
-		//{
+		if(timeout_flag == 1)
+		{
 			//num_write = bytess*(ALG_FRAMES - 8);
 			//num_write = bytess*(ALG_FRAMES - timeout_playnum);
 			//num_write = (num_write > 0) ? num_write : 0;
 			timeout_flag = 0;
 			timeout_playnum = 0;
-		//}
+		}
 		
         //if(rb_get_space_free(g_ringbuf_ao[0]) < bytess_alg_frames){
         //    rb_discard(g_ringbuf_ao[0], bytess_alg_frames);
@@ -1172,7 +1186,7 @@ static void rec_start(void)
     snprintf(path, sizeof(path), "/data/rec.wav");
     if(!p_file_rec) {
         p_file_rec = fopen(path, "w");
-        wav_start_write(p_file_rec, &st_wavhead, 16, REC_CHN, SAMPLE_RATE);
+        wav_start_write(p_file_rec, &st_wavhead, DATA_BIT, REC_CHN, SAMPLE_RATE);
     }
 }
 

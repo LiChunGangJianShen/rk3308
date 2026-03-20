@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 		state = !state;
         led_run_state(state);
         sleep(1);
-        if(!ad_reset){
+        if(!ad_reset && check_ad_start()){
             init_ad_reset();
             ad_reset = 1;
         }

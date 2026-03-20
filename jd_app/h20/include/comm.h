@@ -28,6 +28,9 @@ void delay_us(int us);
 int alsa_cget(const char *card, const char *name, void *val);
 int alsa_cset(const char *card, const char *name, int val);
 
+void generate_1khz_16bit_sine_wave(int lenght, int sample_rate, void *sine_wave_buff);
+void generate_1khz_24bit_sine_wave(int lenght, int sample_rate, void *sine_wave_buff);
+
 #ifdef __cplusplus
 }
 #endif

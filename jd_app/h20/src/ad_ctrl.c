@@ -1,4 +1,10 @@
 #include "rkgpio.h"
+#include <stdatomic.h>
+
+atomic_int can_be_start = 0;
+
+int check_ad_start() { return atomic_load(&can_be_start); }
+void ad_can_be_to_start() { atomic_store(&can_be_start, 1); }
 
 void init_ad_reset(void)
 {

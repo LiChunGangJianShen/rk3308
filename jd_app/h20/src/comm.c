@@ -6,6 +6,7 @@
 #include <sys/resource.h>
 #include <stdint.h>
 #include <alsa/asoundlib.h>
+#include <math.h>
 #include "log.h"
 #include "comm.h"
 
@@ -99,7 +100,7 @@ int set_stack_size(size_t new_size)
 {
     struct rlimit rl;
     
-    // »ñÈ¡µ±Ç°Õ»ÏÞÖÆ
+    // ï¿½ï¿½È¡ï¿½ï¿½Ç°Õ»ï¿½ï¿½ï¿½ï¿½
     if (getrlimit(RLIMIT_STACK, &rl) != 0) {
         perror("getrlimit");
         return -1;
@@ -108,7 +109,7 @@ int set_stack_size(size_t new_size)
     logi("Current stack limits: soft=%lu, hard=%lu\n", 
            (unsigned long)rl.rlim_cur, (unsigned long)rl.rlim_max);
     
-    // ÉèÖÃÐÂµÄÈíÏÞÖÆ£¨²»ÄÜ³¬¹ýÓ²ÏÞÖÆ£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Âµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½ï¿½ï¿½ï¿½Ü³ï¿½ï¿½ï¿½Ó²ï¿½ï¿½ï¿½Æ£ï¿½
     if (new_size > rl.rlim_max) {
         logi("Warning: Requested size exceeds hard limit\n");
         new_size = rl.rlim_max;
@@ -116,7 +117,7 @@ int set_stack_size(size_t new_size)
     
     rl.rlim_cur = new_size;
     
-    // Ó¦ÓÃÐÂÏÞÖÆ
+    // Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     if (setrlimit(RLIMIT_STACK, &rl) != 0) {
         perror("setrlimit\n");
         return -1;
@@ -221,6 +222,40 @@ int alsa_cset(const char *card, const char *name, int val)
     snd_ctl_close(handle);
 
     return err;
+}
+
+void generate_1khz_16bit_sine_wave(int lenght, int sample_rate, void *sine_wave_buff)
+{
+	if(lenght < 0 || sample_rate > 96000 || sample_rate < 8000){
+		printf("invalid parameter\n");
+		return;
+	}
+
+	int len_buff = sample_rate * lenght / 1000;
+	short *buff = (short *)sine_wave_buff;
+#define BASIC_AMPLITUDE		(16384)
+#define PI		(3.1415926)
+	int i;
+	for(i = 0; i < len_buff; i++){
+		buff[i] = BASIC_AMPLITUDE * sin(2 * PI * (i % (sample_rate / 1000)) / (sample_rate / 1000));
+	}
+}
+
+void generate_1khz_24bit_sine_wave(int lenght, int sample_rate, void *sine_wave_buff)
+{
+	if(lenght < 0 || sample_rate > 96000 || sample_rate < 8000){
+		printf("invalid parameter\n");
+		return;
+	}
+
+	int len_buff = sample_rate * lenght / 1000;
+	int *buff = (int *)sine_wave_buff;
+    int basic_amplitude = 0x7FFFFFFF >> 8;
+#define PI		(3.1415926)
+	int i;
+	for(i = 0; i < len_buff; i++){ 
+		buff[i] = basic_amplitude * sin(2 * PI * (i % (sample_rate / 1000)) / (sample_rate / 1000));
+	}
 }
 
 #ifdef __cplusplus

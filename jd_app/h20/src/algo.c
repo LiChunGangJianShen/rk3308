@@ -10,9 +10,9 @@ typedef bool (*ptr_setmicgain)(float);
 typedef char *(*ptr_ver)();
 typedef bool (*ptr_init)();
 typedef void (*ptr_close)();
-typedef void (*ptr_process1)(const short*, const short*, short*, short*, short*, short*);
-typedef void (*ptr_process2)(const short*, const short*, short*, short*);
-typedef void (*ptr_process3)(const short*, const short*, short*, short*);
+typedef void (*ptr_process1)(const audio_fmt_t*, const audio_fmt_t*, audio_fmt_t*, audio_fmt_t*, audio_fmt_t*, audio_fmt_t*);
+typedef void (*ptr_process2)(const audio_fmt_t*, const audio_fmt_t*, audio_fmt_t*, audio_fmt_t*);
+typedef void (*ptr_process3)(const audio_fmt_t*, const audio_fmt_t*, audio_fmt_t*, audio_fmt_t*);
 
 ptr_noise algo_pinknoise = JDZH_FeedbackDestroy_PinkNoiseOnOff;
 ptr_feedback_switch algo_feedback_switch = JDZH_FeedbackDestroy_FeedbackOnOff;
@@ -56,6 +56,7 @@ int algo_init()
         return algo_err_3;
     }
 
+    algo_ai_switch(1);
     logi("---- algo all init success ----\n");
     return algo_err_max;
 }
@@ -86,32 +87,32 @@ char *check_algo_version()
 }
 
 void _algo_process1(
-    const short* mic_data1, 
-    const short* mic_data2, 
-    short* out_data1, 
-    short* out_data2, 
-    short* ref_data1, 
-    short* ref_data2)
+    const audio_fmt_t* mic_data1, 
+    const audio_fmt_t* mic_data2, 
+    audio_fmt_t* out_data1, 
+    audio_fmt_t* out_data2, 
+    audio_fmt_t* ref_data1, 
+    audio_fmt_t* ref_data2)
 {
-    return algo_process1(mic_data1, mic_data2, out_data1, out_data2, ref_data1, ref_data2);
+    algo_process1(mic_data1, mic_data2, out_data1, out_data2, ref_data1, ref_data2);
 }
 
 void _algo_process2(
-    const short* mic_data1, 
-    const short* mic_data2, 
-    short* ref_data1, 
-    short* ref_data2)
+    const audio_fmt_t* mic_data1, 
+    const audio_fmt_t* mic_data2, 
+    audio_fmt_t* ref_data1, 
+    audio_fmt_t* ref_data2)
 {
-    return algo_process2(mic_data1, mic_data2, ref_data1, ref_data2);
+    algo_process2(mic_data1, mic_data2, ref_data1, ref_data2);
 }
 
 void _algo_process3(
-    const short* mic_data1, 
-    const short* mic_data2, 
-    short* ref_data1, 
-    short* ref_data2)
+    const audio_fmt_t* mic_data1, 
+    const audio_fmt_t* mic_data2, 
+    audio_fmt_t* ref_data1, 
+    audio_fmt_t* ref_data2)
 {
-    return algo_process3(mic_data1, mic_data2, ref_data1, ref_data2);
+    algo_process3(mic_data1, mic_data2, ref_data1, ref_data2);
 }
 
 bool pinknoise_switch(int onoff, float gain)

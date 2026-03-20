@@ -19,8 +19,6 @@ typedef struct alsa_api_para{
     char card_name[64];
 }alsa_api_para_t;
 
-typedef short audio_fmt_t;
-
 int init_pcm(snd_pcm_t **ppcm, alsa_api_para_t alsa_params);
 void exit_pcm(snd_pcm_t *ppcm);
 int pcm_in(snd_pcm_t *ppcm, void *buf, int size, int ch, const char *card_name);

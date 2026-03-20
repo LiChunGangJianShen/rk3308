@@ -4,7 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "audio.h"
 #include <stdbool.h>
 
 // AI降噪开关, 0关闭 1开启(默认 0关闭)
@@ -32,9 +32,9 @@ void JDZH_FeedbackDestroy_Close1();
 void JDZH_FeedbackDestroy_Close2();
 void JDZH_FeedbackDestroy_Close3();
 
-void JDZH_FeedbackDestroy_Process1(const short* mic_data1, const short* mic_data2, short* out_data1, short* out_data2, short* ref_data1, short* ref_data2);
-void JDZH_FeedbackDestroy_Process2(const short* mic_data1, const short* mic_data2, short* ref_data1, short* ref_data2);
-void JDZH_FeedbackDestroy_Process3(const short* mic_data1, const short* mic_data2, short* ref_data1, short* ref_data2);
+void JDZH_FeedbackDestroy_Process1(const audio_fmt_t* mic_data1, const audio_fmt_t* mic_data2, audio_fmt_t* out_data1, audio_fmt_t* out_data2, audio_fmt_t* ref_data1, audio_fmt_t* ref_data2);
+void JDZH_FeedbackDestroy_Process2(const audio_fmt_t* mic_data1, const audio_fmt_t* mic_data2, audio_fmt_t* ref_data1, audio_fmt_t* ref_data2);
+void JDZH_FeedbackDestroy_Process3(const audio_fmt_t* mic_data1, const audio_fmt_t* mic_data2, audio_fmt_t* ref_data1, audio_fmt_t* ref_data2);
 
 // 获取版本号
 char* JDZH_FeedbackDestroy_GetVersion();
