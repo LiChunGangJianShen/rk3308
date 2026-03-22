@@ -604,8 +604,8 @@ static int capture_pcm_init(snd_pcm_t **pcm)
     para.block = SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_CAPTURE;
-#if EN_24BIT
-    para.format = SND_PCM_FORMAT_S24_LE;
+#if EN_32BIT
+    para.format = SND_PCM_FORMAT_S32_LE;
 #else
     para.format = SND_PCM_FORMAT_S16_LE;
 #endif
@@ -760,8 +760,8 @@ static int playback_pcm_init(snd_pcm_t **pcm)
     para.block = SND_PCM_NONBLOCK;
     para.access = SND_PCM_ACCESS_RW_INTERLEAVED;
     para.stream = SND_PCM_STREAM_PLAYBACK;
-#if EN_24BIT
-    para.format = SND_PCM_FORMAT_S24_LE;
+#if EN_32BIT
+    para.format = SND_PCM_FORMAT_S32_LE;
 #else
     para.format = SND_PCM_FORMAT_S16_LE;
 #endif

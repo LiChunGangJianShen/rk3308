@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define EN_24BIT        1
+#define EN_32BIT        1
 #define ENABLE_ALGO     1
 #define TWO_OUT_DATA    0
 #define EN_REC_WAV_FILE	0
@@ -16,13 +16,13 @@ extern "C" {
 #define CAPTURE_CHN     2
 #define PLAYBACK_CHN    2
 #define REC_CHN         4
-#if EN_24BIT
-#define DATA_BIT        24
+#if EN_32BIT
+#define DATA_BIT        32
 #else
 #define DATA_BIT        16
 #endif
 
-#if EN_24BIT
+#if EN_32BIT
 typedef int audio_fmt_t;
 #else
 typedef short audio_fmt_t;
