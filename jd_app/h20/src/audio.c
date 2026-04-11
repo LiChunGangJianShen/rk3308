@@ -30,6 +30,7 @@
 #define CAPTURE_CARD_NAME   "hw:h20aiao,0"//"default"   //default capture
 #define PLAYBACK_CARD_NAME  "hw:h20aiao,0"//"default"   //default playback
 #define EQ_FILE             "/data/eq.conf"
+#define EQ_DIR              "/data"
 
 typedef enum{
     alg_idx_1=0,
@@ -198,35 +199,66 @@ float extract_float(const char *input)
 static int save_eq(float *eq, int len)
 {
     int fd = 0;
+    int total_len = 0;
     char buf[16][64] = {0};
+    char wbuf[16 * 64] = {0};
+    char tmp_name[64] = {0};
+    int ret = 0;
 
-    fd = open(EQ_FILE, O_CREAT|O_RDWR|O_TRUNC);
+    sprintf(tmp_name, "%s.tmp.%d", EQ_FILE, getpid());
+    logi("temp eq conf file: %s\n", tmp_name);
+    fd = open(tmp_name, O_CREAT|O_RDWR|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     if(fd < 0){
-        loge("crate eq_file fail\n");
-        return -1;
+        loge("open eq_file(%s) fail\n", tmp_name);
+        ret = -1;
+        goto _cleanup;
     }
 
-    sprintf(buf[0], "EQ1: %.2f dB\n", g_eq[0]);
-    sprintf(buf[1], "EQ2: %.2f dB\n", g_eq[1]);
-    sprintf(buf[2], "EQ3: %.2f dB\n", g_eq[2]);
-    sprintf(buf[3], "EQ4: %.2f dB\n", g_eq[3]);
-    sprintf(buf[4], "EQ5: %.2f dB\n", g_eq[4]);
-    sprintf(buf[5], "EQ6: %.2f dB\n", g_eq[5]);
-    sprintf(buf[6], "EQ7: %.2f dB\n", g_eq[6]);
-    sprintf(buf[7], "EQ8: %.2f dB\n", g_eq[7]);
-    sprintf(buf[8], "EQ9: %.2f dB\n", g_eq[8]);
-    sprintf(buf[9], "EQ10: %.2f dB\n", g_eq[9]);
-    sprintf(buf[10], "EQ11: %.2f dB\n", g_eq[10]);
-    sprintf(buf[11], "EQ12: %.2f dB\n", g_eq[11]);
-    sprintf(buf[12], "EQ13: %.2f dB\n", g_eq[12]);
-    sprintf(buf[13], "EQ14: %.2f dB\n", g_eq[13]);
-    sprintf(buf[14], "EQ15: %.2f dB\n", g_eq[14]);
-    sprintf(buf[15], "EQ16: %.2f dB\n", g_eq[15]);
-    for(int i = 0; i < 16; i++){
+    for (int i = 0; i < 16; i++){
+        sprintf(buf[i], "EQ%d: %.2f dB\n", i + 1, g_eq[i]);
         logi("%s\n", buf[i]);
-        write(fd, buf[i], strlen(buf[i]));
+        size_t str_len = strlen(buf[i]);
+        if(total_len + str_len < sizeof(wbuf)){
+            memcpy(wbuf + total_len, buf[i], str_len);
+            total_len += str_len;
+        }
     }
 
+    ret = write(fd, wbuf, total_len);
+    if(ret < 0){
+        loge("write eq_file fail\n");
+        ret = -1;
+        goto _cleanup;
+    }
+
+    if(fsync(fd) == -1){
+        logi("eq conf fsync failed\n");
+        ret = -1;
+        goto _cleanup;
+    }
+    fd = -1;
+
+    // 原子重命名：这是一个原子操作，要么完全成功，要么完全失败
+    if(rename(tmp_name, EQ_FILE) == -1){
+        loge("rename temp file failed: %s\n", strerror(errno));
+        ret = -1;
+        goto _cleanup;
+    }
+
+    // 同步目录以确保目录项更新
+    int dir_fd = open(EQ_DIR, O_RDONLY);
+    if(dir_fd >= 0){
+        fsync(dir_fd);
+        close(dir_fd);
+    }
+
+_cleanup:
+    if(fd >= 0){
+        close(fd);
+    }
+    if(ret != 0){
+        unlink(tmp_name);
+    }
     return 0;
 }
 static void algo_eq_init(void)
@@ -536,7 +568,9 @@ static void serial_cmd_handle(int fd, char *buf, int data_len)
         sbuf[6] = 0xFE;
         write(fd, sbuf, 7);
         logi("==== function %s ====\n", g_ai_enable?"enable":"disable");
+#if ENABLE_ALGO_AI
         ai_switch(g_ai_enable);
+#endif
     }
 }
 
@@ -806,7 +840,6 @@ static int playback_task(void *arg)
         loge("playback pcm init failed\n");
         goto err_to_exit;
     }
-	
     /*while(1){
         if(rb_get_space_used(g_ringbuf_ao[0]) >= bytess){
             break;

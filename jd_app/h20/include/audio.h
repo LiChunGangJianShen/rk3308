@@ -5,14 +5,22 @@
 extern "C" {
 #endif
 
-#define EN_32BIT        1
+#define USING_48K_64FRAME   0
+#define	ENABLE_ALGO_AI	1
+#define AI_SW_DEFAULT   1
+#define EN_32BIT        0
 #define ENABLE_ALGO     1
 #define TWO_OUT_DATA    0
-#define EN_REC_WAV_FILE	0
+#if USING_48K_64FRAME
+#define SAMPLE_RATE     48000
+#define PERIOD_SIZE     24
+#define ALG_FRAMES      64
+#else
 #define SAMPLE_RATE     22050
 #define PERIOD_SIZE     16
-#define PERIODS         2
 #define ALG_FRAMES      48
+#endif
+#define PERIODS         2
 #define CAPTURE_CHN     2
 #define PLAYBACK_CHN    2
 #define REC_CHN         4

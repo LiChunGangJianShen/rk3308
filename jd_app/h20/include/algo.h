@@ -12,7 +12,9 @@ void algo_close(int err);
 char *check_algo_version();
 bool pinknoise_switch(int onoff, float gain);
 bool feed_back_switch(int onoff);
+#if ENABLE_ALGO_AI
 bool ai_switch(int onoff);
+#endif
 bool feed_back_mute(int mute);
 bool feed_back_set_micgain(float gain);
 bool feed_back_set_eq(float *val);
