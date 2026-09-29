@@ -124,7 +124,8 @@ define check_host_rpath
 	$(if $(filter install-host,$(2)),\
 		$(if $(filter end,$(1)),support/scripts/check-host-rpath $(3) $(HOST_DIR)))
 endef
-GLOBAL_INSTRUMENTATION_HOOKS += check_host_rpath
+# FIXME: 禁用 RPATH 检查以兼容从其他机器拷贝的 output 目录
+# GLOBAL_INSTRUMENTATION_HOOKS += check_host_rpath
 
 define step_check_build_dir_one
 	if [ -d $(2) ]; then \

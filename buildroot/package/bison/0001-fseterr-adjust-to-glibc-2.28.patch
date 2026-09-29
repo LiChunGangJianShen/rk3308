@@ -1,0 +1,31 @@
+From 74d9d7a20ec47fd2b682b2101eb2e7f831f1bea6 Mon Sep 17 00:00:00 2001
+From: Paul Eggert <eggert@cs.ucla.edu>
+Date: Thu, 8 Mar 2018 16:42:45 -0800
+Subject: [PATCH] fseterr: adjust to glibc 2.28 libio.h removal
+
+Problem reported by Daniel P. Berrange in:
+https://lists.gnu.org/r/bug-gnulib/2018-03/msg00000.html
+
+The new libio.h in glibc 2.28 removed _IO_ftrylockfile.
+Check _IO_EOF_SEEN instead.
+
+Signed-off-by: Bernd Kuhls <bernd.kuhls@t-online.de>
+---
+ lib/fseterr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/fseterr.c b/lib/fseterr.c
+index 1335cef..76c1f9c 100644
+--- a/lib/fseterr.c
++++ b/lib/fseterr.c
+@@ -29,7 +29,7 @@ fseterr (FILE *fp)
+   /* Most systems provide FILE as a struct and the necessary bitmask in
+      <stdio.h>, because they need it for implementing getc() and putc() as
+      fast macros.  */
+-#if defined _IO_ftrylockfile || __GNU_LIBRARY__ == 1 /* GNU libc, BeOS, Haiku, Linux libc5 */
++#if defined _IO_EOF_SEEN || __GNU_LIBRARY__ == 1 /* GNU libc, BeOS, Haiku, Linux libc5 */
+   fp->_flags |= _IO_ERR_SEEN;
+ #elif defined __sferror || defined __DragonFly__ /* FreeBSD, NetBSD, OpenBSD, DragonFly, Mac OS X, Cygwin */
+   fp_->_flags |= __SERR;
+--
+2.20.1

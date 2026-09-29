@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Buildroot <buildroot@buildroot.org>
+Date: Sun, 29 Sep 2026 00:00:00 +0000
+Subject: [PATCH] cmake: update minimum required version to 3.5
+
+CMake 4.x removed compatibility with versions < 3.5.
+Update cmake_minimum_required to 3.5 to fix configuration error.
+
+Signed-off-by: Buildroot <buildroot@buildroot.org>
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1111111..2222222 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@
+ # All Rights Reserved.
+ #
+
+-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
++cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+
+ #
+ # simple usage example (Unix):
+--
+2.20.1

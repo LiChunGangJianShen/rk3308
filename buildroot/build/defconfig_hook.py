@@ -20,13 +20,13 @@ def common_config(configs):
             option, value = m.groups()
             allconfigs[config].add((option, value))
 
-    common = allconfigs.values()[0].copy()
+    common = list(allconfigs.values())[0].copy()
     for config in allconfigs.keys():
         common &= allconfigs[config]
     for config in allconfigs.keys():
         allconfigs[config] -= common
 
-    print common
+    print(common)
 
 def load_base(base_cfgs, cfg):
     base_cfgs[cfg] = set()

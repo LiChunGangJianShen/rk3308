@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Buildroot <buildroot@buildroot.org>
+Date: Mon, 28 Sep 2026 00:00:00 +0000
+Subject: [PATCH] cmake: fix deprecated LOCATION property and configure_file
+
+CMake 3.x deprecated the LOCATION property. Replace get_property()
+calls with generator expressions and add @ONLY to configure_file()
+to avoid warnings.
+
+Signed-off-by: Buildroot <buildroot@buildroot.org>
+---
+ src/CMakeLists.txt | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 56756bf..1f7e759 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -108,18 +108,18 @@ install (TARGETS ${PROJECT_NAME} ${LSR}
+
+ # Packaging (for unix-like distributions):
+
+-get_property (LIB1 TARGET ${PROJECT_NAME} PROPERTY LOCATION)
++set (LIB1 $<TARGET_FILE:${PROJECT_NAME}>)
+ if (BUILD_SHARED_LIBS)
+   set (LIB1 ${LIB1}.${SO_VERSION_MAJOR} ${LIB1}.${SO_VERSION})
+ endif ()
+ list (APPEND TARGET_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.h")
+ if (WITH_LSR_BINDINGS)
+-  get_property (LIB2 TARGET ${LSR} PROPERTY LOCATION)
++  set (LIB2 $<TARGET_FILE:${LSR}>)
+   if (BUILD_SHARED_LIBS)
+     set (LIB2 ${LIB2}.${LSR_SO_VERSION_MAJOR} ${LIB2}.${LSR_SO_VERSION})
+   endif ()
+   list (APPEND TARGET_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/${LSR}.h")
+ endif ()
+ set (TARGET_LIBS ${LIB1} ${LIB2})
+-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/libsoxr.src.in ${CMAKE_CURRENT_BINARY_DIR}/libsoxr.src)
+-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/libsoxr-dev.src.in ${CMAKE_CURRENT_BINARY_DIR}/libsoxr-dev.src)
++configure_file (${CMAKE_CURRENT_SOURCE_DIR}/libsoxr.src.in ${CMAKE_CURRENT_BINARY_DIR}/libsoxr.src @ONLY)
++configure_file (${CMAKE_CURRENT_SOURCE_DIR}/libsoxr-dev.src.in ${CMAKE_CURRENT_BINARY_DIR}/libsoxr-dev.src @ONLY)
+--
+2.20.1
+

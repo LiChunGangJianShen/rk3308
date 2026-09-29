@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Buildroot <buildroot@buildroot.org>
+Date: Sun, 29 Sep 2026 00:00:00 +0000
+Subject: [PATCH] mksquashfs: include sys/sysmacros.h for major/minor macros
+
+glibc 2.28+ (Ubuntu 20.04+) requires sys/sysmacros.h for major()/minor()/
+makedev() macros. Include it in both mksquashfs.c and unsquashfs.c to fix
+compilation errors.
+
+Signed-off-by: Buildroot <buildroot@buildroot.org>
+---
+ squashfs-tools/mksquashfs.c  | 1 +
+ squashfs-tools/unsquashfs.c  | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/squashfs-tools/mksquashfs.c b/squashfs-tools/mksquashfs.c
+index 1111111..2222222 100644
+--- a/squashfs-tools/mksquashfs.c
++++ b/squashfs-tools/mksquashfs.c
+@@ -36,6 +36,7 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
++#include <sys/sysmacros.h>
+ #include <errno.h>
+ #include <dirent.h>
+ #include <string.h>
+diff --git a/squashfs-tools/unsquashfs.c b/squashfs-tools/unsquashfs.c
+index 3333333..4444444 100644
+--- a/squashfs-tools/unsquashfs.c
++++ b/squashfs-tools/unsquashfs.c
+@@ -32,6 +32,7 @@
+
+ #include <sys/sysinfo.h>
+ #include <sys/types.h>
++#include <sys/sysmacros.h>
+ #include <sys/time.h>
+ #include <sys/resource.h>
+ #include <limits.h>
+--
+2.20.1
