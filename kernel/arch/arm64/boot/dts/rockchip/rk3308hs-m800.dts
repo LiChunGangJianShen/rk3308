@@ -24,7 +24,7 @@
 		simple-audio-card,codec {
 			sound-dai = <&es7210>;
 		};
- 	};
+	};
 	
 	ti3104_sound: ti3104-sound {
 		status = "okay";
@@ -64,6 +64,7 @@
 	status = "okay";
 	#sound-dai-cells = <0>;
 	rockchip,clk-trcm = <0x02>;
+	rockchip,bclk-fs = <64>;
 };
 
 &i2c1 {

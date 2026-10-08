@@ -846,7 +846,7 @@ static struct snd_soc_dai_driver es7210_dai1 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 8,
+		.channels_max = 4,
 		.rates = es7210_RATES,
 		.formats = es7210_FORMATS,
 	},
@@ -1752,26 +1752,7 @@ static int __exit es7210_i2c_remove(struct i2c_client *i2c)
 	return 0;
 }
 
-static const unsigned short es7210_i2c_addr[] = {
-#if ES7210_CHANNELS_MAX > 0
-	0x40,
-#endif
-
-#if ES7210_CHANNELS_MAX > 4
-	0x43,
-#endif
-
-#if ES7210_CHANNELS_MAX > 8
-	0x42,
-#endif
-
-#if ES7210_CHANNELS_MAX > 12
-	0x41,
-#endif
-
-	I2C_CLIENT_END,
-};
-
+#if !ES7210_MATCH_DTS_EN
 /*
 * device tree source or i2c_board_info both use to transfer hardware information to linux kernel,
 * use one of them wil be OK
@@ -1793,6 +1774,7 @@ static struct i2c_board_info es7210_i2c_board_info[] = {
 	{I2C_BOARD_INFO("MicArray_3", 0x41),},//es7210_3
 #endif
 };
+#endif
 
 static const struct i2c_device_id es7210_i2c_id[] = {
 #if ES7210_CHANNELS_MAX > 0
@@ -1814,6 +1796,58 @@ static const struct i2c_device_id es7210_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, es7210_i2c_id);
 
+#if !ES7210_MATCH_DTS_EN
+static int es7210_i2c_detect(struct i2c_client *client,
+			     struct i2c_board_info *info)
+{
+	struct i2c_adapter *adapter = client->adapter;
+
+	if (adapter->nr == ES7210_I2C_BUS_NUM) {
+		if (client->addr == 0x40) {
+			strlcpy(info->type, "MicArray_0", I2C_NAME_SIZE);
+			return 0;
+		} else if (client->addr == 0x43) {
+			strlcpy(info->type, "MicArray_1", I2C_NAME_SIZE);
+			return 0;
+		} else if (client->addr == 0x42) {
+			strlcpy(info->type, "MicArray_2", I2C_NAME_SIZE);
+			return 0;
+		} else if (client->addr == 0x41) {
+			strlcpy(info->type, "MicArray_3", I2C_NAME_SIZE);
+			return 0;
+		}
+	}
+
+	return -ENODEV;
+}
+
+static const unsigned short es7210_i2c_addr[] = {
+#if ES7210_CHANNELS_MAX > 0
+	0x40,
+#endif
+
+#if ES7210_CHANNELS_MAX > 4
+	0x43,
+#endif
+
+#if ES7210_CHANNELS_MAX > 8
+	0x42,
+#endif
+
+#if ES7210_CHANNELS_MAX > 12
+	0x41,
+#endif
+
+	I2C_CLIENT_END,
+};
+#endif
+
+#if ES7210_MATCH_DTS_EN
+/*
+ * device tree source or i2c_board_info both use to
+ * transfer hardware information to linux kernel,
+ * use one of them wil be OK
+ */
 static const struct of_device_id es7210_dt_ids[] = {
 #if ES7210_CHANNELS_MAX > 0
 	{ .compatible = "ES7210_MicArray_0", },//es7210_0
@@ -1833,27 +1867,42 @@ static const struct of_device_id es7210_dt_ids[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(of, es7210_dt_ids);
+#endif
 
 static struct i2c_driver es7210_i2c_driver = {
 	.driver = {
 		.name = "es7210",
 		.owner = THIS_MODULE,
+#if ES7210_MATCH_DTS_EN
 		.of_match_table = es7210_dt_ids,
+#endif
 	},
 	.probe = es7210_i2c_probe,
 	.remove = __exit_p(es7210_i2c_remove),
 	.class  = I2C_CLASS_HWMON,
 	.id_table = es7210_i2c_id,
+#if !ES7210_MATCH_DTS_EN
+	.address_list = es7210_i2c_addr,
+	.detect = es7210_i2c_detect,
+#endif
 };
 
 
 static int __init es7210_modinit(void)
 {
-	int ret, i;
+	int ret;
+#if !ES7210_MATCH_DTS_EN 
+	int i;
 	struct i2c_adapter *adapter;
 	struct i2c_client *client;
+#endif
 	printk("%s enter es7210\n", __func__);
-
+#if !ES7210_MATCH_DTS_EN
+/*
+* Notes:
+* if the device has been declared in DTS tree,
+* here don't need to create new i2c device with i2c_board_info.
+*/
 	adapter = i2c_get_adapter(ES7210_I2C_BUS_NUM);
 	if (!adapter) {
 		printk("i2c_get_adapter() fail!\n");
@@ -1868,6 +1917,7 @@ static int __init es7210_modinit(void)
 			return -ENODEV;
 	}
 	i2c_put_adapter(adapter);
+#endif
 	ret = i2c_add_driver(&es7210_i2c_driver);
 	if (ret != 0)
 		pr_err("Failed to register es7210 i2c driver : %d \n", ret);

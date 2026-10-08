@@ -61,6 +61,7 @@ void wav_start_write(FILE* fp, struct my_wave_file_headers *fileheader, int bito
     g_sample_rate = sample_rate;
     wav_init_header(fileheader);
     fwrite(fileheader, 1, sizeof(struct my_wave_file_headers), fp);
+    fflush(fp);  // 修复：强制刷入内核缓冲区，避免断电丢失 header
 }
 
 void wav_stop_write(FILE* fp, struct my_wave_file_headers *fileheader, int data_size)
@@ -72,6 +73,7 @@ void wav_stop_write(FILE* fp, struct my_wave_file_headers *fileheader, int data_
     fileheader->st_data.data_chunk_size = data_size;
     fseek(fp, 0, SEEK_SET);
     fwrite(fileheader, 1, sizeof(struct my_wave_file_headers), fp);
+    fflush(fp);  // 修复：强制刷入内核缓冲区，确保录音结束后 header 更新持久化
 }
 
 void parse_wav_file_para(const char *path, int *ch, int *fmt, int *rate)

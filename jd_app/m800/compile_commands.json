@@ -1,0 +1,272 @@
+[
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/uevent.o",
+            "src/uevent.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/uevent.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/ti3104.o",
+            "src/ti3104.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/ti3104.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/main.o",
+            "src/main.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/main.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/out_ctrl.o",
+            "src/out_ctrl.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/out_ctrl.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/signal_handle.o",
+            "src/signal_handle.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/signal_handle.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/comm.o",
+            "src/comm.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/comm.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/wav_file.o",
+            "src/wav_file.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/wav_file.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/rkgpio.o",
+            "src/rkgpio.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/rkgpio.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/udp_server.o",
+            "src/udp_server.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/udp_server.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/log.o",
+            "src/log.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/log.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/ringbuf.o",
+            "src/ringbuf.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/ringbuf.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/algo.o",
+            "src/algo.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/algo.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/audio.o",
+            "src/audio.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/audio.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/run_led.o",
+            "src/run_led.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/run_led.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/es8327.o",
+            "src/es8327.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/es8327.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/eq.o",
+            "src/eq.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/eq.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/thread.o",
+            "src/thread.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/thread.c"
+    },
+    {
+        "arguments": [
+            "aarch64-linux-gnu-gcc",
+            "-c",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-O2",
+            "-I/home/weijy11/project/rk3308/jd_app/m800/include",
+            "-o",
+            "/home/weijy11/project/rk3308/jd_app/m800/src/es7210.o",
+            "src/es7210.c"
+        ],
+        "directory": "/home/weijy11/project/rk3308/jd_app/m800",
+        "file": "src/es7210.c"
+    }
+]

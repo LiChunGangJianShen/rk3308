@@ -492,6 +492,12 @@ config SND_SOC_DMIC
 config SND_SOC_ES7210
 	tristate "Everest Semi ES7210 CODEC"
 	depends on I2C
+	select SND_SOC_GENERIC_DMA
+	help
+		Everest ES7210 Audio CODEC
+config ES7210_MATCH_DTS_EN
+    bool "Enable ES7210 Device Tree match"
+    default y    # 默认开启
 
 config SND_SOC_ES8316
 	tristate "Everest Semi ES8316 CODEC"

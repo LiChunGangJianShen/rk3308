@@ -14,6 +14,8 @@ extern "C" {
 #endif
 
 char *check_proc_name(char *buffer, size_t buffer_size) {
+    if (buffer_size == 0) return NULL;
+
     char exe_path[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
     if (len == -1) {
@@ -61,7 +63,7 @@ unsigned long check_time_increment_ms(struct timeval tvlast, struct timeval tvcu
 {
     if(tvcur.tv_sec < tvlast.tv_sec || 
         ((tvcur.tv_sec == tvlast.tv_sec) && (tvcur.tv_usec < tvlast.tv_usec))){
-        return -1;
+        return 0;
     }
 
     long long sec_diff = (long long)(tvcur.tv_sec - tvlast.tv_sec);
@@ -75,7 +77,7 @@ unsigned long check_time_increment_s(struct timeval tvlast, struct timeval tvcur
 {
     if(tvcur.tv_sec < tvlast.tv_sec || 
         ((tvcur.tv_sec == tvlast.tv_sec) && (tvcur.tv_usec < tvlast.tv_usec))){
-        return -1;
+        return 0;
     }
 
     long long sec_diff = (long long)(tvcur.tv_sec - tvlast.tv_sec);
@@ -89,7 +91,7 @@ double check_time_increment_ms_f(struct timeval tvlast, struct timeval tvcur)
 {
     if(tvcur.tv_sec < tvlast.tv_sec || 
         ((tvcur.tv_sec == tvlast.tv_sec) && (tvcur.tv_usec < tvlast.tv_usec))){
-        return -1;
+        return 0;
     }
 
     long long sec_diff = (long long)(tvcur.tv_sec - tvlast.tv_sec);

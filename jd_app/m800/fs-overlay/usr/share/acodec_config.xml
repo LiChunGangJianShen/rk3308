@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+	<mic1_switch>0</mic1_switch>	<!-- 回采 -->
+	<mic2_switch>0</mic2_switch>	<!-- 3.5远端输入 -->
+	<mic3_switch>0</mic3_switch>	<!-- mic-1 -->
+	<mic4_switch>0</mic4_switch>	<!-- mic-2 -->
+	<mic5_switch>0</mic5_switch>	<!-- mic-3 -->
+	<mic6_switch>1</mic6_switch>	<!-- unused -->
+	<mic7_switch>1</mic7_switch>	<!-- unused -->
+	<mic8_switch>1</mic8_switch>	<!-- unused -->
+	<mic1_volume>0</mic1_volume>	<!-- 回采 0dB -->
+	<mic2_volume>0</mic2_volume>	<!-- 3.5远端输入 0dB -->
+	<mic3_volume>2</mic3_volume>	<!-- mic-1 13dB -->
+	<mic4_volume>2</mic4_volume>	<!-- mic-2 13dB -->
+	<mic5_volume>2</mic5_volume>	<!-- mic-3 13dB -->
+	<mic6_volume>0</mic6_volume>	<!-- unused -->
+	<mic7_volume>0</mic7_volume>	<!-- unused -->
+	<mic8_volume>0</mic8_volume>	<!-- unused -->
+	<!-- <adc_alc_left_0>12</adc_alc_left_0> -->	<!-- 0dB -->
+	<!-- <adc_alc_left_1>12</adc_alc_left_1> -->	<!-- 0dB -->
+	<!-- <adc_alc_left_2>12</adc_alc_left_2> -->	<!-- 0dB -->
+	<!-- <adc_alc_left_3>12</adc_alc_left_3> -->	<!-- 0dB -->
+	<!-- <adc_alc_right_0>12</adc_alc_right_0> -->	<!-- 0dB -->
+	<!-- <adc_alc_right_1>12</adc_alc_right_1> -->	<!-- 0dB -->
+	<!-- <adc_alc_right_2>12</adc_alc_right_2> -->	<!-- 0dB -->
+	<!-- <adc_alc_right_3>12</adc_alc_right_3> -->	<!-- 0dB -->
+	<!-- <alc_agc_switch_left_0>0</alc_agc_switch_left_0> -->	<!-- disable -->
+	<!-- <alc_agc_switch_left_1>0</alc_agc_switch_left_1> -->	<!-- disable -->
+	<!-- <alc_agc_switch_left_2>0</alc_agc_switch_left_2>-->	<!-- disable --> 
+	<!-- <alc_agc_switch_left_3>0</alc_agc_switch_left_3> -->	<!-- disable -->
+	<!-- <alc_agc_switch_right_0>0</alc_agc_switch_right_0> -->	<!-- disable -->
+	<!-- <alc_agc_switch_right_1>0</alc_agc_switch_right_1> -->	<!-- disable -->
+	<!-- <alc_agc_switch_right_2>0</alc_agc_switch_right_2> -->	<!-- disable -->
+	<!-- <alc_agc_switch_right_3>0</alc_agc_switch_right_3> -->	<!-- disable -->
+	<!--
+	<alc_agc_left_0>0</alc_agc_left_0>
+	<alc_agc_left_1>0</alc_agc_left_1>
+	<alc_agc_left_2>0</alc_agc_left_2>
+	<alc_agc_left_3>0</alc_agc_left_3>
+	<alc_agc_right_0>0</alc_agc_right_0>
+	<alc_agc_right_1>0</alc_agc_right_1>
+	<alc_agc_right_2>0</alc_agc_right_2>
+	<alc_agc_right_3>0</alc_agc_right_3>
+	-->
+	<adc_hpf_0>0</adc_hpf_0>	<!-- off -->
+	<adc_hpf_1>0</adc_hpf_1>	<!-- off -->
+	<adc_hpf_2>0</adc_hpf_2>	<!-- off -->
+	<adc_hpf_3>0</adc_hpf_3>	<!-- off -->
+	<!-- <lineout_hpout_enable>11</lineout_hpout_enable>-->		<!-- 0-lineout enable only  1-hpout enable only  11-lineout and hpout enable -->
+	<hpmix_left_volume>1</hpmix_left_volume>	<!-- hpmix-left off -->
+	<hpmix_right_volume>1</hpmix_right_volume>	<!-- hpmix-left on -->
+	<hpout_left_volume>0</hpout_left_volume>	<!-- unused -->
+	<hpout_right_volume>26</hpout_right_volume>	<!-- aecout -->
+	<lineout_left_volume>3</lineout_left_volume>	<!-- spkout -->
+	<lineout_right_volume>0</lineout_right_volume>	<!-- unused -->
+</config>

@@ -602,6 +602,14 @@ static int mic_task(void *arg)
         }
         else if(avail >= MIC_PERIOD_SIZE){
             ret = snd_pcm_readi(pcm, buf, MIC_PERIOD_SIZE);
+            for(int i = 0 ; i < 16 ; i++){
+                fmt_t tmp_da = buf[i][1];
+                fmt_t tmp_db = buf[i][4];
+                buf[i][1] = buf[i][3];
+                buf[i][3] = tmp_da;
+                buf[i][4] = buf[i][6];
+                buf[i][6] = tmp_da;
+            }
             if(ret > 0){
                 for (int i = 0; i < algo_max; i++){
                     // if (ringbuf_get_free(g_ringbuf_mic[i]) < (bytess * ret))

@@ -67,7 +67,7 @@ int save_eq(float *eq, int len)
     int fd = 0;
     char buf[EQ_BAND][64] = {0};
 
-    fd = open(EQ_FILE, O_CREAT|O_RDWR|O_TRUNC);
+    fd = open(EQ_FILE, O_CREAT|O_RDWR|O_TRUNC, 0644);  // 修复：O_CREAT 需要 mode 参数
     if(fd < 0){
         loge("crate eq_file fail\n");
         return -1;
@@ -81,6 +81,7 @@ int save_eq(float *eq, int len)
         write(fd, buf[i], strlen(buf[i]));
     }
 
+    close(fd);  // 修复：关闭文件描述符，避免泄漏
     return 0;
 }
 
@@ -90,7 +91,7 @@ void algo_eq_init(void)
     FILE *fp = NULL;
     int i=0;
     if(access(EQ_FILE, F_OK) == 0){
-        fp = fopen(EQ_FILE, "rw+");
+        fp = fopen(EQ_FILE, "r+");  // 修复：无效模式 "rw+" 改为标准 "r+"
         if(!fp){
             loge("fopen %s fail\n", EQ_FILE);
             return;
