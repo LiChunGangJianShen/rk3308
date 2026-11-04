@@ -110,3 +110,7 @@
 &i2c3 {
 	status = "okay";
 };
+
+&tsadc {
+	status = "disable";
+};
